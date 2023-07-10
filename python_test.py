@@ -5,10 +5,10 @@ from os import makedirs
 from datetime import date
 import glob
 from scipy import ndimage
+from typing import Tuple
 
-def segmentation(image_folder_path, model_path, diam = 40, save = False, savedir=None):
-    """Savedir is the directory in which to save the masks"""
-
+def segmentation(image_folder_path: str, model_path: str, diam: int=40,
+                 save: bool=False, savedir: str='') -> Tuple[list, str]:
     # Get the model
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
     # Open image files
@@ -21,10 +21,11 @@ def segmentation(image_folder_path, model_path, diam = 40, save = False, savedir
     # Save masks as .tif's in folder savedir
     if save:
         _save(savedir, imgs, masks, flows, names)
+
     return masks, savedir
 
 
-def _save(savedir, imgs, masks, flows, names):
+def _save(savedir: str, imgs: list, masks: list, flows: list, names: list) -> None:
     # Create a directory where the files can be saved
     if savedir == None:
         savedir = "GeneratedMasks_"+str(date.today())
@@ -35,40 +36,39 @@ def _save(savedir, imgs, masks, flows, names):
     return None
 
 
-def get_no_of_roi(masks):
+def get_no_of_roi(masks: list) -> list:
     """Get the number of RIO's in each mask"""
     return [np.max(m) for m in masks]
 
 
-def get_mask_files(folder):
+def get_mask_files(folder: str) -> list:
     """Load ready-made masks from specified folder."""
     file_names = glob.glob(folder + '/*_masks.tif')
     masks = [imread(mask) for mask in file_names]
     return masks
 
 
-def get_centers_of_mass(masks):
+def get_centers_of_mass(masks: list) -> list:
+    """Returns a list with coordinates for centers of mass for each cell in each image
+    on the form [[(coordinate of c1, im1), (coordinates)]]"""
     coms = []
     number_of_roi = get_no_of_roi(masks)
-    
     for i in range(len(masks)):
         labels = range(1, number_of_roi[i] + 1)
         comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
-        coms.append(comsi)
-                        
+        coms.append(comsi)      
     return coms
 
 
 def main():
     image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
-    model_path = 'C:/Users/workstation3/Documents/Hanna/Master2023/CP_20230705_confl'
+    model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
 
-    # masks, savedir = segmentation(image_folder_path, model_path, save = True)
-    masks = get_mask_files('GeneratedMasks_2023-07-07')
+    masks, savedir = segmentation(image_folder_path, model_path, save = False)
+    # masks = get_mask_files('GeneratedMasks_2023-07-07')
 
-    coms = get_centers_of_mass(masks)
-    print(len(coms))
+    # coms = get_centers_of_mass(masks)
 
 if __name__ == "__main__":
     main()
