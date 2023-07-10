@@ -11,25 +11,36 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40,
                  save: bool=False, savedir: str='') -> Tuple[list, str]:
     # Get the model
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
+    
     # Open image files
-    files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
-    imgs = [imread(f) for f in files]
-    names = [str(f) for f in files]
+    imgs, names = open_images(image_folder_path)
+
     # Segment images
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
                                             flow_threshold=0.4, do_3D = False)
+    
     # Save masks as .tif's in folder savedir
     if save:
         _save(savedir, imgs, masks, flows, names)
 
     return masks, savedir
 
+def open_images(image_folder_path):
+    files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
+    imgs = [imread(f) for f in files]
+    names = [str(f) for f in files]
+    return imgs, names
 
-def _save(savedir: str, imgs: list, masks: list, flows: list, names: list) -> None:
+
+def _save(masks: list, imgs: list=[], flows: list=[], names: list=[], savedir: str='') -> None:
     # Create a directory where the files can be saved
-    if savedir == None:
+    if savedir == '':
         savedir = "GeneratedMasks_"+str(date.today())
     makedirs(savedir)
+
+    if names == []:
+        names = ["%03d" % i for i in range(len(imgs))]
+
     # Save the masks in said directory
     save_masks(imgs, masks, flows, names, png=False, tif=True, 
                savedir=savedir, save_txt=False)
@@ -48,7 +59,7 @@ def get_mask_files(folder: str) -> list:
     return masks
 
 
-def get_centers_of_mass(masks: list) -> Tuple(list, list):
+def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     """Returns a list with coordinates for centers of mass for each cell in each image
     on the form [[(coordinate of c1, im1), (coordinates)]]"""
     coms = []
@@ -60,10 +71,11 @@ def get_centers_of_mass(masks: list) -> Tuple(list, list):
     return coms, number_of_roi
 
 
-def track_cells(masks, COMs, number_of_roi, limit = 5):
+def track_cells(masks, limit = 5, save=False):
     new_masks = np.zeros_like(masks)
     new_masks[0] = masks[0]
-    
+    COMs, number_of_roi = get_centers_of_mass(masks)
+
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         for comnr in range(len(COMs[i])):
@@ -85,6 +97,9 @@ def track_cells(masks, COMs, number_of_roi, limit = 5):
             # Give area in new mask value corresponding to matched cell
             new_masks[imnr] += (masks[imnr] == comnr)*min_index//comnr
 
+    if save:
+        _save(new_masks, savedir="NewMasks_"+str(date.today))
+
     return new_masks
 
 
@@ -94,9 +109,6 @@ def main():
     model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
 
     masks, savedir = segmentation(image_folder_path, model_path, save = False)
-    # masks = get_mask_files('GeneratedMasks_2023-07-07')
-
-    # coms = get_centers_of_mass(masks)
 
 if __name__ == "__main__":
     main()
