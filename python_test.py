@@ -48,7 +48,7 @@ def get_mask_files(folder: str) -> list:
     return masks
 
 
-def get_centers_of_mass(masks: list) -> list:
+def get_centers_of_mass(masks: list) -> Tuple(list, list):
     """Returns a list with coordinates for centers of mass for each cell in each image
     on the form [[(coordinate of c1, im1), (coordinates)]]"""
     coms = []
@@ -57,7 +57,35 @@ def get_centers_of_mass(masks: list) -> list:
         labels = range(1, number_of_roi[i] + 1)
         comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
         coms.append(comsi)      
-    return coms
+    return coms, number_of_roi
+
+
+def track_cells(masks, COMs, number_of_roi, limit = 5):
+    new_masks = np.zeros_like(masks)
+    new_masks[0] = masks[0]
+    
+    # Loop through all masks and centers of masses.
+    for imnr in range(1, len(masks)):
+        for comnr in range(len(COMs[i])):
+            ref_image_index = 0
+            for k in range(1,5):
+                # Get all distances between centers of mass of one image and the one before.
+                distances = np.linalg.norm(COMs[imnr-k]-COMs[imnr][comnr])
+                min_distance = np.min(distances)
+                # If the smallest one is smaller than the limit, exit loop
+                if min_distance < limit:
+                    min_index = np.argmin(distances)
+                    ref_image_index = imnr-k
+                    break
+
+            # If no matching cell is found in previous images:
+            if ref_image_index == 0:
+                min_index = max(number_of_roi[:imnr]+1)
+
+            # Give area in new mask value corresponding to matched cell
+            new_masks[imnr] += (masks[imnr] == comnr)*min_index//comnr
+
+    return new_masks
 
 
 def main():
