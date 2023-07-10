@@ -7,7 +7,7 @@ import glob
 from scipy import ndimage
 from typing import Tuple
 from tifffile import imsave
-from os.path import abspath, basename
+from os.path import abspath, basename, splitext
 
 def segmentation(image_folder_path: str, model_path: str, diam: int=40,
                  save: bool=False, savedir: str=None) -> Tuple[list, str]:
@@ -23,7 +23,7 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40,
     
     # Save masks as .tif's in folder savedir
     if save:
-        _save(savedir=savedir, imgs=imgs, masks=masks, flows=flows, names=names)
+        _save_masks(savedir=savedir, masks=masks, names=names)
 
     return masks, savedir
 
@@ -34,28 +34,25 @@ def open_images(image_folder_path):
     return imgs, names
 
 
-def _save(masks: list, imgs: list=None, flows: list=None, names: list=None, savedir: str=None) -> None:
+def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
     # Create a directory where the files can be saved
     if savedir == None:
         print("This works")
         savedir = "GeneratedMasks_"+str(date.today())
     print("Savedir: " + str(savedir))
     makedirs(savedir)
-
     path = abspath(savedir)
-    print(path)
 
+    # Generate names if not given beforehand
     if names == None:
-        names = [f"{i:03}" for i in range(len(masks))]
-
+        names = [f"{i:04}" for i in range(len(masks))]
+    else:
+        names = [splitext(name)[0] for name in names]
     print(names)
 
     # Save the masks in said directory
-    for (mask, name, mask) in zip(masks, names, masks):
+    for (mask, name) in zip(masks, names):
         imsave(path+"\\"+name + "_cp_masks.tif", mask)
-        
-    # save_masks(imgs, masks, flows, names, png=False, tif=True, 
-            #    savedir=savedir, save_txt=False)
     return None
 
 
@@ -114,7 +111,7 @@ def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
 
     if save:
         savedir = "NewMasks_"+str(date.today())
-        _save(new_masks, savedir = savedir)
+        _save_masks(new_masks, savedir = savedir)
 
     return new_masks
 
