@@ -1,10 +1,10 @@
 from cellpose import models
-from cellpose.io import imread, masks_flows_to_seg, get_image_files, save_masks
+from cellpose.io import imread, get_image_files, save_masks
 import numpy as np
-import matplotlib.pyplot as plt
 from os import makedirs
 from datetime import date
 import glob
+from scipy import ndimage
 
 def segmentation(image_folder_path, model_path, diam = 40, save = False, savedir=None):
     """Savedir is the directory in which to save the masks"""
@@ -47,19 +47,28 @@ def get_mask_files(folder):
     return masks
 
 
+def get_centers_of_mass(masks):
+    coms = []
+    number_of_roi = get_no_of_roi(masks)
+    
+    for i in range(len(masks)):
+        labels = range(1, number_of_roi[i] + 1)
+        comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
+        coms.append(comsi)
+                        
+    return coms
+
+
 def main():
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/Confluent_images/short"
+    image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
     model_path = 'C:/Users/workstation3/Documents/Hanna/Master2023/CP_20230705_confl'
 
-    # masks, savedir = segmentation(image_folder_path, model_path, save = False)
+    # masks, savedir = segmentation(image_folder_path, model_path, save = True)
     masks = get_mask_files('GeneratedMasks_2023-07-07')
 
-    print(masks)
-    print(type(masks))
-    print(len(masks))
-
-    print(get_no_of_roi(masks))
+    coms = get_centers_of_mass(masks)
+    print(len(coms))
 
 if __name__ == "__main__":
     main()
