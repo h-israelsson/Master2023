@@ -57,8 +57,9 @@ def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
 
 
 def get_no_of_roi(masks: list) -> list:
-    """Get the number of RIO's in each mask"""
+    """Get the number of ROI's in each mask"""
     return [np.max(m) for m in masks]
+    # return [len(np.unique(m)) for m in masks]
 
 
 def open_masks(folder: str) -> list:
@@ -86,28 +87,38 @@ def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
     COMs, number_of_roi = get_centers_of_mass(masks)
 
     # Loop through all masks and centers of masses.
+    print("Len(masks): " + str(len(masks)))
     for imnr in range(1, len(masks)):
-        for comnr in range(len(COMs[imnr])):
-            ref_image_index = 0
+        nr_of_COMs = len(COMs[imnr])
+        for comnr in range(nr_of_COMs):
+            ref_image_index = -10
             for k in range(1,5):
                 # Get all distances between centers of mass of one image and the one before.
-                distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]))
+                if imnr-k<0:
+                    break
+                distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]), axis=1)
                 min_distance = np.min(distances)
+                # print(min_distance)
+                # input("Press enter to continue")
                 # If the smallest one is smaller than the limit, exit loop
                 if min_distance < limit:
-                    min_index = np.argmin(distances)
+                    min_index = np.argmin(distances)+1
                     ref_image_index = imnr-k
                     break
 
             # If no matching cell is found in previous images:
-            if ref_image_index == 0:
-                min_index = max(number_of_roi[:imnr])+1
+            if ref_image_index == -10:
+                min_index = np.max(new_masks[:imnr].flatten())+1
 
             # Give area in new mask value corresponding to matched cell
-            roi_coords = np.argwhere(masks[imnr] == comnr)
+            roi_coords = np.argwhere(masks[imnr].flatten() == comnr)
             np.put(new_masks[imnr], roi_coords, min_index)
-            # new_mask = (masks[imnr] == comnr)*min_index//comnr
-            # new_masks[imnr] += new_mask
+
+            # to_add_to_new_masks = np.array((masks[imnr]==comnr)*min_index//comnr)
+            # new_masks[imnr] += to_add_to_new_masks
+
+        print(new_masks[imnr])
+        # input("Press enter to continue")
 
     if save:
         savedir = "NewMasks_"+str(date.today())
@@ -121,10 +132,13 @@ def main():
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
     model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
 
-    # masks = open_masks("GeneratedMasks_2023-07-07")
-    masks, savedir = segmentation(image_folder_path, model_path, save = True)
+    masks = open_masks("GeneratedMasks_2023-07-07")
+    # masks, savedir = segmentation(image_folder_path, model_path, save = True)
 
-    # new_masks = track_cells(masks, save=False)
+    print(get_no_of_roi(masks))
+
+    new_masks = track_cells(masks, save=False)
+    print(get_no_of_roi(new_masks))
 
 if __name__ == "__main__":
     main()
