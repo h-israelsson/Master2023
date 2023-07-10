@@ -6,9 +6,11 @@ from datetime import date
 import glob
 from scipy import ndimage
 from typing import Tuple
+from tifffile import imsave
+from os.path import abspath, basename
 
 def segmentation(image_folder_path: str, model_path: str, diam: int=40,
-                 save: bool=False, savedir: str='') -> Tuple[list, str]:
+                 save: bool=False, savedir: str=None) -> Tuple[list, str]:
     # Get the model
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
     
@@ -21,29 +23,39 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40,
     
     # Save masks as .tif's in folder savedir
     if save:
-        _save(savedir, imgs, masks, flows, names)
+        _save(savedir=savedir, imgs=imgs, masks=masks, flows=flows, names=names)
 
     return masks, savedir
 
 def open_images(image_folder_path):
     files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
     imgs = [imread(f) for f in files]
-    names = [str(f) for f in files]
+    names = [basename(f) for f in files]
     return imgs, names
 
 
-def _save(masks: list, imgs: list=[], flows: list=[], names: list=[], savedir: str='') -> None:
+def _save(masks: list, imgs: list=None, flows: list=None, names: list=None, savedir: str=None) -> None:
     # Create a directory where the files can be saved
-    if savedir == '':
+    if savedir == None:
+        print("This works")
         savedir = "GeneratedMasks_"+str(date.today())
+    print("Savedir: " + str(savedir))
     makedirs(savedir)
 
-    if names == []:
-        names = ["%03d" % i for i in range(len(imgs))]
+    path = abspath(savedir)
+    print(path)
+
+    if names == None:
+        names = [f"{i:03}" for i in range(len(masks))]
+
+    print(names)
 
     # Save the masks in said directory
-    save_masks(imgs, masks, flows, names, png=False, tif=True, 
-               savedir=savedir, save_txt=False)
+    for (mask, name, mask) in zip(masks, names, masks):
+        imsave(path+"\\"+name + "_cp_masks.tif", mask)
+        
+    # save_masks(imgs, masks, flows, names, png=False, tif=True, 
+            #    savedir=savedir, save_txt=False)
     return None
 
 
@@ -52,7 +64,7 @@ def get_no_of_roi(masks: list) -> list:
     return [np.max(m) for m in masks]
 
 
-def get_mask_files(folder: str) -> list:
+def open_masks(folder: str) -> list:
     """Load ready-made masks from specified folder."""
     file_names = glob.glob(folder + '/*_masks.tif')
     masks = [imread(mask) for mask in file_names]
@@ -71,18 +83,18 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     return coms, number_of_roi
 
 
-def track_cells(masks, limit = 5, save=False):
+def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
     new_masks = np.zeros_like(masks)
     new_masks[0] = masks[0]
     COMs, number_of_roi = get_centers_of_mass(masks)
 
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
-        for comnr in range(len(COMs[i])):
+        for comnr in range(len(COMs[imnr])):
             ref_image_index = 0
             for k in range(1,5):
                 # Get all distances between centers of mass of one image and the one before.
-                distances = np.linalg.norm(COMs[imnr-k]-COMs[imnr][comnr])
+                distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]))
                 min_distance = np.min(distances)
                 # If the smallest one is smaller than the limit, exit loop
                 if min_distance < limit:
@@ -92,13 +104,17 @@ def track_cells(masks, limit = 5, save=False):
 
             # If no matching cell is found in previous images:
             if ref_image_index == 0:
-                min_index = max(number_of_roi[:imnr]+1)
+                min_index = max(number_of_roi[:imnr])+1
 
             # Give area in new mask value corresponding to matched cell
-            new_masks[imnr] += (masks[imnr] == comnr)*min_index//comnr
+            roi_coords = np.argwhere(masks[imnr] == comnr)
+            np.put(new_masks[imnr], roi_coords, min_index)
+            # new_mask = (masks[imnr] == comnr)*min_index//comnr
+            # new_masks[imnr] += new_mask
 
     if save:
-        _save(new_masks, savedir="NewMasks_"+str(date.today))
+        savedir = "NewMasks_"+str(date.today())
+        _save(new_masks, savedir = savedir)
 
     return new_masks
 
@@ -108,7 +124,10 @@ def main():
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
     model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
 
-    masks, savedir = segmentation(image_folder_path, model_path, save = False)
+    # masks = open_masks("GeneratedMasks_2023-07-07")
+    masks, savedir = segmentation(image_folder_path, model_path, save = True)
+
+    # new_masks = track_cells(masks, save=False)
 
 if __name__ == "__main__":
     main()
