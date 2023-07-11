@@ -8,6 +8,7 @@ from scipy import ndimage
 from typing import Tuple
 from tifffile import imsave
 from os.path import abspath, basename, splitext
+from statistics import mode
 
 def segmentation(image_folder_path: str, model_path: str, diam: int=40,
                  save: bool=False, savedir: str=None) -> Tuple[list, str]:
@@ -81,7 +82,7 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     return coms, number_of_roi
 
 
-def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
+def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
     new_masks = np.zeros_like(masks)
     new_masks[0] = masks[0]
     COMs, number_of_roi = get_centers_of_mass(masks)
@@ -146,6 +147,23 @@ def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
     return new_masks
 
 
+def track_cells_overlap(masks):
+    new_masks = np.zeros_like(masks)
+    new_masks[0] = masks[0]
+    for i in range(len(masks)-1):
+        values = np.unique(masks[i+1])
+        for value in values:
+            roi = np.ma.masked_array(new_masks[i], mask = (masks[i+1]!=value))
+            coordinates = np.argwhere(mask[i+1] == value)
+            references = np.ravel_multi_index(coordinates.T, new_masks[i])
+            # print("roi: " + str(roi))
+            # input("Press enter to continue")
+            # Find most common value in roi. If 0, complicate things. Otherwise just put this number at position in new_masks
+
+
+    return None
+
+
 def main():
     image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
@@ -156,7 +174,7 @@ def main():
 
     print(get_no_of_roi(masks))
 
-    new_masks = track_cells(masks, save=True)
+    new_masks = track_cells_overlap(masks)#, save=True)
     print(get_no_of_roi(new_masks))
 
 if __name__ == "__main__":
