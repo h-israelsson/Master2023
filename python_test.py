@@ -85,16 +85,16 @@ def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
     new_masks = np.zeros_like(masks)
     new_masks[0] = masks[0]
     COMs, number_of_roi = get_centers_of_mass(masks)
-    print("COMs: " + str(COMs[0]))
-    print("COMs: " + str(COMs[1]))
-    input("Press enter to continue")
+    # print("COMs: " + str(COMs[0]))
+    # print("COMs: " + str(COMs[1]))
+    # input("Press enter to continue")
 
     # Loop through all masks and centers of masses.
-    print("Len(masks): " + str(len(masks)))
+    # print("Len(masks): " + str(len(masks)))
     for imnr in range(1, len(masks)):
         nr_of_COMs = len(COMs[imnr])
-        print("nr_of_COMs: " + str(nr_of_COMs))
-        input("Press enter to continue")
+        # print("nr_of_COMs: " + str(nr_of_COMs))
+        # input("Press enter to continue")
         new_cells = 0
         for comnr in range(nr_of_COMs):
             ref_image_index = -10
@@ -103,37 +103,41 @@ def track_cells(masks: list, limit: int = 5, save: bool = False) -> list:
                 if imnr-k<0:
                     break
                 distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]), axis=1)
-                print("np.array(COMs[imnr-k]): " + str(np.array(COMs[imnr-k])))
-                print("len(np.array(COMs[imnr-k])): " + str(len(np.array(COMs[imnr-k]))))
-                print("np.array(COMs[imnr][comnr]): " + str(np.array(COMs[imnr][comnr])))
-                print("Distances: " + str(distances))
+                # print("np.array(COMs[imnr-k]): " + str(np.array(COMs[imnr-k])))
+                # print("len(np.array(COMs[imnr-k])): " + str(len(np.array(COMs[imnr-k]))))
+                # print("np.array(COMs[imnr][comnr]): " + str(np.array(COMs[imnr][comnr])))
+                # print("Distances: " + str(distances))
                 # input("Press enter to continue")
                 min_distance = np.min(distances)
-                print("min_distance: " + str(min_distance))
-                input("Press enter to continue")
+                # print("min_distance: " + str(min_distance))
+                # input("Press enter to continue")
                 # If the smallest one is smaller than the limit, exit loop
                 if min_distance < limit:
-                    min_index = np.argmin(distances)+1
                     ref_image_index = imnr-k
+                    matched_cell_coord = COMs[ref_image_index][np.argmin(distances)]
+                    cell_value = new_masks[ref_image_index][round(matched_cell_coord[0])][round(matched_cell_coord[1])]
+                    # print("Cell value: " + str(cell_value))
+                    # input("Press enter to continue")
                     break
 
             # If no matching cell is found in previous images:
             if ref_image_index == -10:
                 print("No matching cell")
                 new_cells += 1
-                min_index = np.maximum(new_masks[:imnr].flatten()) + new_cells
+                cell_value = np.max(new_masks[:imnr].flatten()) + new_cells
+                print("Cell value: " + str(cell_value))
 
             # Give area in new mask value corresponding to matched cell
             roi_coords = np.argwhere(masks[imnr].flatten() == comnr)
-            print("roi_coords: " + str(roi_coords))
-            input("Press enter to continue")
-            np.put(new_masks[imnr], roi_coords, min_index)
+            # print("roi_coords: " + str(roi_coords))
+            # input("Press enter to continue")
+            np.put(new_masks[imnr], roi_coords, cell_value)
 
-            # to_add_to_new_masks = np.array((masks[imnr]==comnr)*min_index//comnr)
+            # to_add_to_new_masks = np.array((masks[imnr]==comnr)*cell_value//comnr)
             # new_masks[imnr] += to_add_to_new_masks
 
-        print(new_masks[imnr])
-        input("Press enter to continue")
+        # print(new_masks[imnr])
+        # input("Press enter to continue")
 
     if save:
         savedir = "NewMasks_"+str(date.today())
