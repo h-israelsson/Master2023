@@ -93,11 +93,10 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
     # Loop through all masks and centers of masses.
     # print("Len(masks): " + str(len(masks)))
     for imnr in range(1, len(masks)):
-        nr_of_COMs = len(COMs[imnr])
         # print("nr_of_COMs: " + str(nr_of_COMs))
         # input("Press enter to continue")
         new_cells = 0
-        for comnr in range(nr_of_COMs):
+        for comnr in range(number_of_roi[imnr]):
             ref_image_index = -10
             for k in range(1,5):
                 # Get all distances between centers of mass of one image and the one before.
@@ -124,21 +123,18 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
             # If no matching cell is found in previous images:
             if ref_image_index == -10:
                 print("No matching cell")
+                # print("Min distance: " + str(min_distance))
+                # print("COM: " + str(COMs[imnr][comnr]))
+                # print("comnr: " + str(comnr))
                 new_cells += 1
                 cell_value = np.max(new_masks[:imnr].flatten()) + new_cells
                 print("Cell value: " + str(cell_value))
 
             # Give area in new mask value corresponding to matched cell
-            roi_coords = np.argwhere(masks[imnr].flatten() == comnr)
+            roi_coords = np.argwhere(masks[imnr].flatten() == comnr+1)
             # print("roi_coords: " + str(roi_coords))
             # input("Press enter to continue")
             np.put(new_masks[imnr], roi_coords, cell_value)
-
-            # to_add_to_new_masks = np.array((masks[imnr]==comnr)*cell_value//comnr)
-            # new_masks[imnr] += to_add_to_new_masks
-
-        # print(new_masks[imnr])
-        # input("Press enter to continue")
 
     if save:
         savedir = "NewMasks_"+str(date.today())
@@ -154,7 +150,7 @@ def track_cells_overlap(masks):
         values = np.unique(masks[i+1])
         for value in values:
             roi = np.ma.masked_array(new_masks[i], mask = (masks[i+1]!=value))
-            coordinates = np.argwhere(mask[i+1] == value)
+            coordinates = np.argwhere(masks[i+1] == value)
             references = np.ravel_multi_index(coordinates.T, new_masks[i])
             # print("roi: " + str(roi))
             # input("Press enter to continue")
@@ -165,16 +161,17 @@ def track_cells_overlap(masks):
 
 
 def main():
-    image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
+    # image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
-    model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
+    # model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
 
     masks = open_masks("GeneratedMasks_2023-07-07")
     # masks, savedir = segmentation(image_folder_path, model_path, save = True)
 
     print(get_no_of_roi(masks))
 
-    new_masks = track_cells_overlap(masks)#, save=True)
+    new_masks = track_cells_com(masks, save=True)
+    # new_masks = track_cells_overlap(masks)#, save=True)
     print(get_no_of_roi(new_masks))
 
 if __name__ == "__main__":
