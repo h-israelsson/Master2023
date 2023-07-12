@@ -10,23 +10,21 @@ from tifffile import imsave
 from os.path import abspath, basename, splitext
 from statistics import mode
 
-def segmentation(image_folder_path: str, model_path: str, diam: int=40,
-                 save: bool=False, savedir: str=None) -> Tuple[list, str]:
+
+def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bool=False, 
+                 savedir: str=None) -> Tuple[list, str]:
     # Get the model
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
-    
     # Open image files
     imgs, names = open_images(image_folder_path)
-
     # Segment images
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
-                                            flow_threshold=0.4, do_3D = False)
-    
+                                      flow_threshold=0.4, do_3D = False)
     # Save masks as .tif's in folder savedir
     if save:
         _save_masks(savedir=savedir, masks=masks, names=names)
-
     return masks, savedir
+
 
 def open_images(image_folder_path):
     files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
@@ -43,14 +41,12 @@ def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
     print("Savedir: " + str(savedir))
     makedirs(savedir)
     path = abspath(savedir)
-
     # Generate names if not given beforehand
     if names == None:
         names = [f"{i:04}" for i in range(len(masks))]
     else:
         names = [splitext(name)[0] for name in names]
     print(names)
-
     # Save the masks in said directory
     for (mask, name) in zip(masks, names):
         imsave(path+"\\"+name + "_cp_masks.tif", mask)
@@ -86,7 +82,6 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
     new_masks = np.zeros_like(masks)
     new_masks[0] = masks[0]
     COMs, number_of_roi = get_centers_of_mass(masks)
-
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         new_cells = 0
@@ -103,12 +98,10 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
                     matched_cell_coord = COMs[ref_image_index][np.argmin(distances)]
                     cell_value = new_masks[ref_image_index][round(matched_cell_coord[0])][round(matched_cell_coord[1])]
                     break
-
             # If no matching cell is found in previous images:
             if ref_image_index == -10:
                 new_cells += 1
                 cell_value = np.max(new_masks[:imnr].flatten()) + new_cells
-
             # Give area in new mask value corresponding to matched cell
             roi_coords = np.argwhere(masks[imnr].flatten() == comnr+1)
             np.put(new_masks[imnr], roi_coords, cell_value)
@@ -133,7 +126,6 @@ def track_cells_overlap(masks):
             # input("Press enter to continue")
             # Find most common value in roi. If 0, complicate things. Otherwise just put this number at position in new_masks
 
-
     return None
 
 
@@ -153,9 +145,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-# How to continue: Track cells. Change the values in each mask so that a certain cell has a certain value?
-# This will be complicated. Will it take to much work?
