@@ -1,25 +1,32 @@
-from cellpose import models
-from cellpose.io import imread, get_image_files, save_masks
-import numpy as np
+import glob
 import os
 from datetime import date
-import glob
-from scipy import ndimage
-from typing import Tuple
-from tifffile import imsave
 from os.path import abspath, basename, splitext
 from statistics import mode
+from typing import Tuple
+
+import numpy as np
+from cellpose import models
+from cellpose.io import get_image_files, imread, save_masks
+from scipy import ndimage
+from tifffile import imsave
 
 
-def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bool=False, 
-                 savedir: str=None) -> Tuple[list, str]:
+def segmentation(
+    image_folder_path: str,
+    model_path: str,
+    diam: int = 40,
+    save: bool = False,
+    savedir: str = None,
+) -> Tuple[list, str]:
     # Get the model
-    model = models.CellposeModel(gpu = True, pretrained_model=model_path)
+    model = models.CellposeModel(gpu=True, pretrained_model=model_path)
     # Open image files
     imgs, names = open_images(image_folder_path)
     # Segment images
-    masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
-                                      flow_threshold=0.4, do_3D = False)
+    masks, flows, styles = model.eval(
+        imgs, diameter=diam, channels=[0, 0], flow_threshold=0.4, do_3D=False
+    )
     # Save masks as .tif's in folder savedir
     if save:
         _save_masks(savedir=savedir, masks=masks, names=names)
@@ -27,17 +34,17 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bo
 
 
 def open_images(image_folder_path):
-    files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
+    files = get_image_files(image_folder_path, "unused_mask_filter_variable")
     imgs = [imread(f) for f in files]
     names = [basename(f) for f in files]
     return imgs, names
 
 
-def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
+def _save_masks(masks: list, names: list = None, savedir: str = None) -> None:
     # Create a directory where the files can be saved
     if savedir == None:
         print("This works")
-        savedir = "GeneratedMasks_"+str(date.today())
+        savedir = "GeneratedMasks_" + str(date.today())
     print("Savedir: " + str(savedir))
     if not os.path.exists(savedir):
         os.makedirs(savedir)
@@ -49,20 +56,22 @@ def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
         names = [splitext(name)[0] for name in names]
     print(names)
     # Save the masks in said directory
-    for (mask, name) in zip(masks, names):
-        imsave(path+"\\"+name + "_cp_masks.tif", mask)
+    for mask, name in zip(masks, names):
+        imsave(path + "\\" + name + "_cp_masks.tif", mask)
     return None
 
 
 def get_no_of_roi(masks: list) -> list:
     """Get the number of ROI's in each mask"""
     # return [np.max(m) for m in masks]
-    return [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
+    return [
+        len(np.unique(m)) - 1 for m in masks
+    ]  # Have to take -1 bc regions with 0 do not count as roi:s
 
 
 def open_masks(folder: str) -> list:
     """Load ready-made masks from specified folder."""
-    file_names = glob.glob(folder + '/*_masks.tif')
+    file_names = glob.glob(folder + "/*_masks.tif")
     masks = [imread(mask) for mask in file_names]
     return masks
 
@@ -73,9 +82,9 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     coms = []
     number_of_roi = get_no_of_roi(masks)
     for i in range(len(masks)):
-        labels = range(1, number_of_roi[i]+1)
-        comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
-        coms.append(comsi)      
+        labels = range(1, number_of_roi[i] + 1)
+        comsi = ndimage.center_of_mass(masks[i], masks[i], labels)
+        coms.append(comsi)
     return coms, number_of_roi
 
 
@@ -88,36 +97,39 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
         new_cells = 0
         for comnr in range(number_of_roi[imnr]):
             ref_image_index = -10
-            for k in range(1,5):
+            for k in range(1, 5):
                 # Get all distances between centers of mass of one image and the one before.
-                if imnr-k<0:
+                if imnr - k < 0:
                     break
-                distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]), axis=1)
+                distances = np.linalg.norm(
+                    np.array(COMs[imnr - k]) - np.array(COMs[imnr][comnr]), axis=1
+                )
                 min_distance = np.min(distances)
                 # If the smallest one is smaller than the limit, exit loop
                 if min_distance < limit:
-                    ref_image_index = imnr-k
+                    ref_image_index = imnr - k
                     matched_cell_coord = COMs[ref_image_index][np.argmin(distances)]
-                    cell_value = tracked_masks[ref_image_index][round(matched_cell_coord[0])][round(matched_cell_coord[1])]
+                    cell_value = tracked_masks[ref_image_index][
+                        round(matched_cell_coord[0])
+                    ][round(matched_cell_coord[1])]
                     break
             # If no matching cell is found in previous images:
             if ref_image_index == -10:
                 new_cells += 1
                 cell_value = np.max(tracked_masks[:imnr].flatten()) + new_cells
             # Give area in new mask value corresponding to matched cell
-            roi_coords = np.argwhere(masks[imnr].flatten() == comnr+1)
+            roi_coords = np.argwhere(masks[imnr].flatten() == comnr + 1)
             np.put(tracked_masks[imnr], roi_coords, cell_value)
 
     if save:
-        savedir = "NewMasks_"+str(date.today())
-        _save_masks(tracked_masks, savedir = savedir)
+        savedir = "NewMasks_" + str(date.today())
+        _save_masks(tracked_masks, savedir=savedir)
 
     return tracked_masks
 
 
 def analyze_cell_intensities(tracked_cells, cell_number, plot=True, save_plot=False):
     return None
-
 
 
 def main():
@@ -132,6 +144,7 @@ def main():
 
     tracked_masks = track_cells_com(masks, save=True)
     print(get_no_of_roi(tracked_masks))
+
 
 if __name__ == "__main__":
     main()
