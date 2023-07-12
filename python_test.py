@@ -1,7 +1,7 @@
 from cellpose import models
 from cellpose.io import imread, get_image_files, save_masks
 import numpy as np
-from os import makedirs
+import os
 from datetime import date
 import glob
 from scipy import ndimage
@@ -39,7 +39,8 @@ def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
         print("This works")
         savedir = "GeneratedMasks_"+str(date.today())
     print("Savedir: " + str(savedir))
-    makedirs(savedir)
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
     path = abspath(savedir)
     # Generate names if not given beforehand
     if names == None:
@@ -92,6 +93,7 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
                 if imnr-k<0:
                     break
                 distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]), axis=1)
+                min_distance = np.min(distances)
                 # If the smallest one is smaller than the limit, exit loop
                 if min_distance < limit:
                     ref_image_index = imnr-k
