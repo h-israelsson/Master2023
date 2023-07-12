@@ -79,8 +79,8 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
 
 
 def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
-    new_masks = np.zeros_like(masks)
-    new_masks[0] = masks[0]
+    tracked_masks = np.zeros_like(masks)
+    tracked_masks[0] = masks[0]
     COMs, number_of_roi = get_centers_of_mass(masks)
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
@@ -96,37 +96,26 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
                 if min_distance < limit:
                     ref_image_index = imnr-k
                     matched_cell_coord = COMs[ref_image_index][np.argmin(distances)]
-                    cell_value = new_masks[ref_image_index][round(matched_cell_coord[0])][round(matched_cell_coord[1])]
+                    cell_value = tracked_masks[ref_image_index][round(matched_cell_coord[0])][round(matched_cell_coord[1])]
                     break
             # If no matching cell is found in previous images:
             if ref_image_index == -10:
                 new_cells += 1
-                cell_value = np.max(new_masks[:imnr].flatten()) + new_cells
+                cell_value = np.max(tracked_masks[:imnr].flatten()) + new_cells
             # Give area in new mask value corresponding to matched cell
             roi_coords = np.argwhere(masks[imnr].flatten() == comnr+1)
-            np.put(new_masks[imnr], roi_coords, cell_value)
+            np.put(tracked_masks[imnr], roi_coords, cell_value)
 
     if save:
         savedir = "NewMasks_"+str(date.today())
-        _save_masks(new_masks, savedir = savedir)
+        _save_masks(tracked_masks, savedir = savedir)
 
-    return new_masks
+    return tracked_masks
 
 
-def track_cells_overlap(masks):
-    new_masks = np.zeros_like(masks)
-    new_masks[0] = masks[0]
-    for i in range(len(masks)-1):
-        values = np.unique(masks[i+1])
-        for value in values:
-            roi = np.ma.masked_array(new_masks[i], mask = (masks[i+1]!=value))
-            coordinates = np.argwhere(masks[i+1] == value)
-            references = np.ravel_multi_index(coordinates.T, new_masks[i])
-            # print("roi: " + str(roi))
-            # input("Press enter to continue")
-            # Find most common value in roi. If 0, complicate things. Otherwise just put this number at position in new_masks
-
+def analyze_cell_intensities(tracked_cells, cell_number, plot=True, save_plot=False):
     return None
+
 
 
 def main():
@@ -139,9 +128,8 @@ def main():
 
     print(get_no_of_roi(masks))
 
-    new_masks = track_cells_com(masks, save=True)
-    # new_masks = track_cells_overlap(masks)#, save=True)
-    print(get_no_of_roi(new_masks))
+    tracked_masks = track_cells_com(masks, save=True)
+    print(get_no_of_roi(tracked_masks))
 
 if __name__ == "__main__":
     main()
