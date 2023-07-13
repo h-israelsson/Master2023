@@ -92,6 +92,7 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
                 if imnr-k<0:
                     break
                 distances = np.linalg.norm(np.array(COMs[imnr-k])-np.array(COMs[imnr][comnr]), axis=1)
+                min_distance = np.min(distances)
                 # If the smallest one is smaller than the limit, exit loop
                 if min_distance < limit:
                     ref_image_index = imnr-k
@@ -113,8 +114,12 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
     return tracked_masks
 
 
-def analyze_cell_intensities(tracked_cells, cell_number, plot=True, save_plot=False):
-    return None
+def analyze_cell_intensities(tracked_cells: list, images: list, cell_number: int, plot: bool=True, save_plot: bool=False):
+    mean_intensities = np.zeros(len(tracked_cells))
+    for i in range(len(mean_intensities)):
+        intensities = images[i]
+        mean_intensities[i] = np.mean(intensities[tracked_cells[i] == cell_number])
+    return mean_intensities
 
 
 
@@ -126,10 +131,11 @@ def main():
     masks = open_masks("GeneratedMasks_2023-07-07")
     # masks, savedir = segmentation(image_folder_path, model_path, save = True)
 
-    print(get_no_of_roi(masks))
+    images, image_names = open_images("short")
 
-    tracked_masks = track_cells_com(masks, save=True)
-    print(get_no_of_roi(tracked_masks))
+    tracked_masks = track_cells_com(masks, save=False)
+
+    mean_intensities = analyze_cell_intensities(tracked_masks, images, 67)
 
 if __name__ == "__main__":
     main()
