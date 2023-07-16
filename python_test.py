@@ -9,6 +9,7 @@ from typing import Tuple
 from tifffile import imsave
 from os.path import abspath, basename, splitext
 from statistics import mode
+import matplotlib.pyplot as plt
 
 
 def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bool=False, 
@@ -114,13 +115,41 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
     return tracked_masks
 
 
-def analyze_cell_intensities(tracked_cells: list, images: list, cell_number: int, plot: bool=True, save_plot: bool=False):
-    mean_intensities = np.zeros(len(tracked_cells))
-    for i in range(len(mean_intensities)):
+def get_cell_intensities(cell_number: int, tracked_cells: list, images: list, plot: bool=False):
+    no_of_images = len(images)
+    mean_intensities = np.zeros(no_of_images)
+    for i in range(no_of_images):
         intensities = images[i]
         mean_intensities[i] = np.mean(intensities[tracked_cells[i] == cell_number])
-    return mean_intensities
 
+    relative_intensities = (mean_intensities - np.min(mean_intensities))/(np.mean(mean_intensities)-np.min(mean_intensities))
+
+    if plot:
+        x = np.linspace(0,0+(10*no_of_images), no_of_images, endpoint=False)
+        plt.plot(x, relative_intensities)
+        plt.ylabel("Relative intensity")
+        plt.xlabel("Time (s)")
+        plt.title("Relative intensity of cell no. " + str(cell_number))
+        plt.show()
+
+    return relative_intensities
+
+
+def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=False):
+    intensities = []
+    if all_cells:
+        cell_numbers = range(np.max(tracked_cells))
+    
+    for cell_number in cell_numbers:
+        intensities.append(get_cell_intensities(cell_number, tracked_cells, images, plot=False))
+    corrcoefs = np.corrcoef(intensities)
+
+    if plot:
+        plt.matshow(corrcoefs)
+        plt.title("Correlation coefficients")
+        plt.show()
+
+    return corrcoefs
 
 
 def main():
@@ -135,7 +164,8 @@ def main():
 
     tracked_masks = track_cells_com(masks, save=False)
 
-    mean_intensities = analyze_cell_intensities(tracked_masks, images, 67)
+    corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
+
 
 if __name__ == "__main__":
     main()
