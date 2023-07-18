@@ -126,6 +126,7 @@ def get_cell_intensities(cell_number: int, tracked_cells: list, images: list, pl
 
     if plot:
         x = np.linspace(0,0+(10*no_of_images), no_of_images, endpoint=False)
+        plt.figure()
         plt.plot(x, relative_intensities)
         plt.ylabel("Relative intensity")
         plt.xlabel("Time (s)")
@@ -147,9 +148,21 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
     if plot:
         plt.matshow(corrcoefs)
         plt.title("Correlation coefficients")
+        plt.colorbar(label="Correlation", orientation="vertical", fraction=0.046, pad=0.04)
         plt.show()
 
     return corrcoefs
+
+
+def compare_intensities(tracked_cells, images, cell_numbers=None, all_cells=False, plot=True):
+    intensities = []
+    if all_cells:
+        cell_numbers = range(np.max(tracked_cells))
+
+    for cell_number in cell_numbers:
+        intensities.append(get_cell_intensities(cell_number, tracked_cells, images, plot=False))
+
+    
 
 
 def main():
@@ -162,9 +175,11 @@ def main():
 
     images, image_names = open_images("short")
 
-    tracked_masks = track_cells_com(masks, save=False)
+    # tracked_masks = track_cells_com(masks, save=False)
 
     corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
+
+
 
 
 if __name__ == "__main__":
