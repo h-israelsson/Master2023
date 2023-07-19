@@ -47,10 +47,10 @@ def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
         names = [f"{i:04}" for i in range(len(masks))]
     else:
         names = [splitext(name)[0] for name in names]
-    print(names)
     # Save the masks in said directory
-    for (mask, name) in zip(masks, names):
-        imsave(path+"\\"+name + "_cp_masks.tif", mask)
+    # for (mask, name) in zip(masks, names):
+    #     imsave(path+"//"+name + "_cp_masks.tif", mask)
+    imsave(path+"//"+ "0000" + "_cp_masks.tif", masks) 
     return None
 
 
@@ -166,18 +166,23 @@ def compare_intensities(tracked_cells, images, cell_numbers=None, all_cells=Fals
 
 
 def main():
-    # image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
-    # model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
+    # image_folder_path = r"//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Ouabain 1st image seq/short"
+    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
+    model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
 
-    masks = open_masks("GeneratedMasks_2023-07-07")
-    # masks, savedir = segmentation(image_folder_path, model_path, save = True)
+    # masks = open_masks("GeneratedMasks_2023-07-07")
+    masks, savedir = segmentation(image_folder_path, model_path, save = True)
 
-    images, image_names = open_images("short")
+    # images, image_names = open_images(image_folder_path)
 
     # tracked_masks = track_cells_com(masks, save=False)
 
-    corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
+    # # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
+
+    # get_cell_intensities(57, tracked_masks, images, plot=True)
+    # get_cell_intensities(58, tracked_masks, images, plot=True)
+    # get_cell_intensities(59, tracked_masks, images, plot=True)
+    # get_cell_intensities(60, tracked_masks, images, plot=True)
 
 
 
