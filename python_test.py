@@ -18,6 +18,7 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bo
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
     # Open image files
     imgs, names = open_images(image_folder_path)
+    print(imgs)
     # Segment images
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
                                       flow_threshold=0.4, do_3D = False)
@@ -28,10 +29,13 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bo
 
 
 def open_images(image_folder_path):
-    files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
-    imgs = [imread(f) for f in files]
-    names = [basename(f) for f in files]
-    return imgs, names
+    imgs0 = imread(image_folder_path)
+    imgs = [np.array(f) for f in imgs0] # Make each image separate
+    # files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
+    # imgs = [imread(f) for f in files]
+    # names = [basename(f) for f in files]
+    name = basename(image_folder_path)
+    return imgs, name
 
 
 def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
@@ -167,8 +171,10 @@ def compare_intensities(tracked_cells, images, cell_numbers=None, all_cells=Fals
 
 def main():
     # image_folder_path = r"//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Ouabain 1st image seq/short"
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
-    model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
+    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
+    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
+    # model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
+    model_path = "C:/Users/workstation3/Documents/Hanna's models/CBXoua20230719"
 
     # masks = open_masks("GeneratedMasks_2023-07-07")
     masks, savedir = segmentation(image_folder_path, model_path, save = True)
