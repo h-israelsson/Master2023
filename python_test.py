@@ -144,8 +144,6 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list, images: list)
     return None
 
 
-
-
 def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=False):
     intensities = []
     if all_cells:
@@ -164,17 +162,6 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
     return corrcoefs
 
 
-def compare_intensities(tracked_cells, images, cell_numbers=None, all_cells=False, plot=True):
-    intensities = []
-    if all_cells:
-        cell_numbers = range(np.max(tracked_cells))
-
-    for cell_number in cell_numbers:
-        intensities.append(get_cell_intensities(cell_number, tracked_cells, images))
-
-    
-
-
 def main():
     # image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
@@ -188,7 +175,6 @@ def main():
     tracked_masks = track_cells_com(masks, save=False)
 
     # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
-
 
     plot_cell_intensities([54,55,56,57], tracked_masks, images)
 
