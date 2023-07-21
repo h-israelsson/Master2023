@@ -188,10 +188,13 @@ def main():
     # print(np.setdiff1d)
     # input("Press enter to continue")
     # print(list(set(images1)-set(images0)))
-    for i,j in zip(images0, images1):
-        for m,n in zip(images0)
-        for a, b in zip(images0, images1):
-            assert a == b
+    for i, (im1, im2) in enumerate(zip(images0, images1)):
+        assert im1.shape == im2.shape
+        num_equal = np.count_nonzero(im1 == im2)
+        num_different = np.prod(i.shape) - num_equal
+        if num_different > 0:
+            print(f"Image {i} contains {num_different} differences")
+
 
     # images, image_name = open_images(image_folder_path)
 
