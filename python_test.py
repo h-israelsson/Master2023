@@ -7,7 +7,7 @@ import glob
 from scipy import ndimage
 from typing import Tuple
 from tifffile import imsave
-from os.path import abspath, basename, splitext
+from os.path import abspath, basename, splitext, exists
 from statistics import mode
 import matplotlib.pyplot as plt
 
@@ -17,46 +17,47 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bo
     # Get the model
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
     # Open image files
-    imgs, names = open_images(image_folder_path)
+    imgs, name = open_images(image_folder_path)
     # Segment images
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
                                       flow_threshold=0.4, do_3D = False)
-    # Save masks as .tif's in folder savedir
+    # Save masks as .tif in folder savedir
     if save:
-        _save_masks(savedir=savedir, masks=masks, names=names)
+        _save_masks(savedir=savedir, masks=masks, name=name)
     return masks, savedir
 
 
 def open_images(image_folder_path):
+    """Opens separate images."""
     files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
     imgs = [imread(f) for f in files]
     names = [basename(f) for f in files]
     return imgs, names
 
 
-def _save_masks(masks: list, names: list=None, savedir: str=None) -> None:
-    # Create a directory where the files can be saved
+def open_image_stack(image_path: str):
+    """Opens a tiff file."""
+    img = imread(image_path)
+    stack = [np.array(i) for i in img] # Necessary for correct segmentation
+    name = basename(image_path)
+    return stack, name
+
+
+def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
+    """Saves masks as single tif file."""
+    if name == None:
+        name = str(date.today()) + "_masks.tif"
     if savedir == None:
-        print("This works")
-        savedir = "GeneratedMasks_"+str(date.today())
-    print("Savedir: " + str(savedir))
-    makedirs(savedir)
-    path = abspath(savedir)
-    # Generate names if not given beforehand
-    if names == None:
-        names = [f"{i:04}" for i in range(len(masks))]
+        imsave(name, masks)
     else:
-        names = [splitext(name)[0] for name in names]
-    print(names)
-    # Save the masks in said directory
-    for (mask, name) in zip(masks, names):
-        imsave(path+"\\"+name + "_cp_masks.tif", mask)
+        if exists(savedir) == False:
+            makedirs(savedir)
+        imsave(savedir+"\\"+name+"_masks.tif", masks)
     return None
 
 
 def get_no_of_roi(masks: list) -> list:
     """Get the number of ROI's in each mask"""
-    # return [np.max(m) for m in masks]
     return [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
 
 
@@ -163,17 +164,18 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
 
 
 def main():
-    # image_folder_path = r"\\storage3.ad.scilifelab.se\alm\BrismarGroup\Hanna\Ouabain 1st image seq\short"
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent"
+    # image_folder_path = r"//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Ouabain 1st image seq/short"
+    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
+    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
     # model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
+    model_path = "C:/Users/workstation3/Documents/Hanna's models/CBXoua20230719"
 
-    masks = open_masks("GeneratedMasks_2023-07-07")
-    # masks, savedir = segmentation(image_folder_path, model_path, save = True)
+    # masks = open_masks("GeneratedMasks_2023-07-07")
+    masks, savedir = segmentation(image_folder_path, model_path, save = True)
 
-    images, image_names = open_images("short")
+    # images, image_names = open_images(image_folder_path)
 
     tracked_masks = track_cells_com(masks, save=False)
-
     # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
 
     plot_cell_intensities([54,55,56,57], tracked_masks, images)
