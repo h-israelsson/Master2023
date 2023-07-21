@@ -17,7 +17,7 @@ def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bo
     # Get the model
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
     # Open image files
-    imgs, name = open_images(image_folder_path)
+    imgs, name = open_image_stack(image_folder_path)
     # Segment images
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
                                       flow_threshold=0.4, do_3D = False)
@@ -56,7 +56,7 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
     return None
 
 
-def get_no_of_roi(masks: list) -> list:
+def get_roi_count(masks: list) -> list:
     """Get the number of ROI's in each mask"""
     return [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
 
@@ -72,22 +72,22 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     """Returns a list with coordinates for centers of mass for each cell in each image
     on the form [[(coordinate of c1, im1), (coordinates)]]"""
     coms = []
-    number_of_roi = get_no_of_roi(masks)
+    roi_count = get_roi_count(masks)
     for i in range(len(masks)):
-        labels = range(1, number_of_roi[i]+1)
+        labels = range(1, roi_count[i]+1)
         comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
         coms.append(comsi)      
-    return coms, number_of_roi
+    return coms, roi_count
 
 
 def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
-    COMs, number_of_roi = get_centers_of_mass(masks)
+    COMs, roi_count = get_centers_of_mass(masks)
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         new_cells = 0
-        for comnr in range(number_of_roi[imnr]):
+        for comnr in range(roi_count[imnr]):
             ref_image_index = -10
             for k in range(1,5):
                 # Get all distances between centers of mass of one image and the one before.
@@ -139,9 +139,8 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list, images: list)
     for c in cell_numbers:
         y = get_cell_intensities(c, tracked_cells, images)
         plt.plot(x, y, label="Cell " + str(c))
-    
     plt.show()
-
+    
     return None
 
 
