@@ -6,7 +6,7 @@ from datetime import date
 import glob
 from scipy import ndimage
 from typing import Tuple
-from tifffile import imsave
+from tifffile import imwrite
 from os.path import abspath, basename, splitext, exists
 from statistics import mode
 import matplotlib.pyplot as plt
@@ -39,20 +39,20 @@ def open_image_stack(image_path: str):
     """Opens a tiff file."""
     img = imread(image_path)
     stack = [np.array(i) for i in img] # Necessary for correct segmentation
-    name = basename(image_path)
+    name = splitext(basename(image_path))[0]
     return stack, name
 
 
 def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
     """Saves masks as single tif file."""
     if name == None:
-        name = str(date.today()) + "_masks.tif"
+        name = str(date.today())
     if savedir == None:
-        imsave(name, masks)
+        imwrite(name + "_masks.tif", masks)
     else:
         if exists(savedir) == False:
             makedirs(savedir)
-        imsave(savedir+"\\"+name+"_masks.tif", masks)
+        imwrite(savedir+"\\"+name+"_masks.tif", masks)
     return None
 
 
@@ -61,11 +61,14 @@ def get_roi_count(masks: list) -> list:
     return [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
 
 
-def open_masks(folder: str) -> list:
-    """Load ready-made masks from specified folder."""
-    file_names = glob.glob(folder + '/*_masks.tif')
-    masks = [imread(mask) for mask in file_names]
-    return masks
+# def open_masks(folder: str) -> list:
+#     """Load ready-made masks from specified folder."""
+#     file_names = glob.glob(folder + '/*_masks.tif')
+#     masks = [imread(mask) for mask in file_names]
+#     return masks
+
+def open_masks(file_path):
+    return imread(file_path)
 
 
 def get_centers_of_mass(masks: list) -> Tuple[list, list]:
@@ -80,7 +83,7 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     return coms, roi_count
 
 
-def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
+def track_cells_com(masks: list, limit: int = 10, name: str=None, save: bool = False) -> list:
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
     COMs, roi_count = get_centers_of_mass(masks)
@@ -110,8 +113,8 @@ def track_cells_com(masks: list, limit: int = 10, save: bool = False) -> list:
             np.put(tracked_masks[imnr], roi_coords, cell_value)
 
     if save:
-        savedir = "NewMasks_"+str(date.today())
-        _save_masks(tracked_masks, savedir = savedir)
+        # savedir = "NewMasks_"+str(date.today())
+        _save_masks(tracked_masks, name=name)
 
     return tracked_masks
 
@@ -165,16 +168,18 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
 def main():
     # image_folder_path = r"//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Ouabain 1st image seq/short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
-    # model_path = 'C:/Users/workstation3/Documents/CP_20230705_confl'
-    model_path = "C:/Users/workstation3/Documents/Hanna's models/CBXoua20230719"
+    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
+    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
+    model_path = 'C:/Users/workstation3/Documents/Hannas_models/CP_20230705_confl'
+    # model_path = "C:/Users/workstation3/Documents/Hannas_models/CBXoua202307"
 
-    # masks = open_masks("GeneratedMasks_2023-07-07")
-    masks, savedir = segmentation(image_folder_path, model_path, save = True)
+    masks = open_masks("CBX-ouabain-10_masks.tif")
+    # masks, savedir = segmentation(image_folder_path, model_path, save = True)
 
     # images, image_names = open_images(image_folder_path)
+    images, image_name = open_image_stack(image_folder_path)
 
-    tracked_masks = track_cells_com(masks, save=False)
+    tracked_masks = track_cells_com(masks, name=image_name, save=True)
     # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
 
     plot_cell_intensities([54,55,56,57], tracked_masks, images)
