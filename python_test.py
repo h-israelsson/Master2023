@@ -153,10 +153,13 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
     intensities = []
     if all_cells:
         cell_numbers = range(np.max(tracked_cells))
+    corrcoefs = np.zeros(len(cell_numbers), len(cell_numbers))
     
     for cell_number in cell_numbers:
         intensities.append(get_cell_intensities(cell_number, tracked_cells, images))
-    corrcoefs = np.corrcoef(intensities)
+        for i in range(cell_number+1):
+            corrcoefs[i, cell_number] = np.correlate(i, cell_number)
+    # corrcoefs = np.corrcoef(intensities)
 
     if plot:
         plt.matshow(corrcoefs)
@@ -171,27 +174,21 @@ def main():
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/Confluent_images"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
-    model_path = 'C:/Users/workstation3/Documents/Hannas_models/CP_20230705_confl'
+    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
+    # model_path = 'C:/Users/workstation3/Documents/Hannas_models/CP_20230705_confl'
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/CBXoua202307"
 
     # masks = open_masks("onehourconfluent-tracking-from-separate-files_masks.tif")
-    masks, savedir = segmentation(image_folder_path, model_path, save = False)
+    # masks = open_masks("onehourconfluent-tracking-from-separate-files_masks.tif")
+    # masks, savedir = segmentation(image_folder_path, model_path, save = False)
 
     # images0, image_names = open_images(image_folder_path)
     # # print(type(images0), len(images0))
 
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
-    # images1, image_names = open_image_stack(image_folder_path)
-    # input("Press enter to continue")
-    # print(type(images1), len(images1))
-    # print(np.setdiff1d)
-    # input("Press enter to continue")
-    # print(list(set(images1)-set(images0)))
 
     # images, image_name = open_images(image_folder_path)
 
-    tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
+    # tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
     # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
 
     # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], masks, images)
