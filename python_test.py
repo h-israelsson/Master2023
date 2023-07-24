@@ -57,9 +57,13 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
     return None
 
 
-def get_roi_count(masks: list) -> list:
+def get_roi_count(masks: list):
     """Get the number of ROI's in each mask"""
-    return [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
+    if len(masks.shape) == 3:
+        roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
+    if len(masks.shape) == 2:
+        roi_count = len(np.unique(masks))-1
+    return roi_count
 
 
 def open_masks(folder: str) -> list:
@@ -76,10 +80,14 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     """Returns a list with coordinates for centers of mass for each cell in each image."""
     coms = []
     roi_count = get_roi_count(masks)
-    for i in range(len(masks)):
-        labels = range(1, roi_count[i]+1)
-        comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
-        coms.append(comsi)      
+    if len(masks.shape) == 3:
+        for i in range(masks.shape[0]):
+            labels = range(1, roi_count[i]+1)
+            comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
+            coms.append(comsi)
+    if len(masks.shape) == 2:
+        labels = range(1, roi_count+1)
+        coms.append(ndimage.center_of_mass(masks,masks, labels))
     return coms, roi_count
 
 
@@ -181,20 +189,27 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
     return corrcoefs
 
 
-def get_stable_cells(tracked_masks):
+def get_common_cells(tracked_masks):
     """Returns the cell numbers that are common for all images."""
     numbers_lists = []
     for image in tracked_masks:
         numbers_lists.append(np.unique(image))
     commons = numbers_lists[0]
-    for i in range(len(numbers_lists)):
-        commons = np.intersect1d(commons, numbers_lists[i+1])
+    for i in range(1,len(numbers_lists)):
+        commons = np.intersect1d(commons, numbers_lists[i])
     return commons
     
 
-def correlation_by_distance(ref_cell: int, tracked_masks, images, plot=True):
+def get_cross_correlation_by_distance(ref_cell: int, tracked_masks, images, plot=True):
     # Only use cells that appear in all images.
+    cell_numbers = get_common_cells(tracked_masks)
     coms, roi_count = get_centers_of_mass(tracked_masks[0])
+    com_ref = coms[ref_cell]
+    print(com_ref)
+    distances = np.linalg.norm(np.array(coms)-np.array(com_ref))
+    dist_dict = dict(zip(cell_numbers, distances[cell_numbers-1]))
+    sorted_dist_dict = dict(sorted(dist_dict.items(), key=lambda item: item[1]))
+    print(sorted_dist_dict)
     return None
 
 
@@ -218,7 +233,8 @@ def main():
     # images, image_name = open_images(image_folder_path)
 
     # tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
-    corrcoefs = correlation(masks, images, all_cells=True, plot=True)
+    # corrcoefs = correlation(masks, images, all_cells=True, plot=True)
+    get_cross_correlation_by_distance(67, masks, images)
 
     # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], masks, images)
 
