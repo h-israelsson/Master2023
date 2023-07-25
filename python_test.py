@@ -12,19 +12,17 @@ from statistics import mode
 import matplotlib.pyplot as plt
 
 
-def segmentation(image_folder_path: str, model_path: str, diam: int=40, save: bool=False, 
-                 savedir: str=None) -> Tuple[list, str]:
-    # Get the model
+def get_segmentation(image_path: str, model_path: str, diam: int=40, save: bool=False, 
+                 savedir: str=None) -> list:
+    """Takes an image and segments it with the given model. Returns segmentation mask."""
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
-    # Open image files
-    imgs, name = open_image_stack(image_folder_path)
-    # Segment images
+    imgs, name = open_image_stack(image_path)   # Change to open_images if images are separate and not in a stack
+    # imgs, name = open_images(image_path)
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0], 
                                       flow_threshold=0.4, do_3D = False)
-    # Save masks as .tif in folder savedir
     if save:
-        _save_masks(savedir=savedir, masks=masks, name=name)
-    return masks, savedir
+        _save_masks(savedir=savedir, masks=masks, name=splitext(basename(image_path))[0])
+    return masks
 
 
 def open_images(image_folder_path):
@@ -58,7 +56,7 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
 
 
 def get_roi_count(masks: list):
-    """Get the number of ROI's in each mask"""
+    """Returns the number of ROI's in each image (mask) as a list."""
     if len(masks.shape) == 3:
         roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
     if len(masks.shape) == 2:
@@ -67,7 +65,7 @@ def get_roi_count(masks: list):
 
 
 def open_masks(folder: str) -> list:
-    """Load ready-made masks from specified folder."""
+    """Load ready-made masks from specified folder. The name of the file must end with _mask.tif."""
     file_names = glob.glob(folder + '/*_masks.tif')
     masks = [imread(mask) for mask in file_names]
     return masks
@@ -91,7 +89,8 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     return coms, roi_count
 
 
-def track_cells_com(masks: list, limit: int = 10, name: str=None, save: bool = False) -> list:
+def get_tracked_masks(masks: list, limit: int = 10, name: str=None, save: bool = False) -> list:
+    """Tracks cells and returns a list of masks where each cell is given the same number in every mask."""
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
     COMs, roi_count = get_centers_of_mass(masks)
@@ -128,6 +127,7 @@ def track_cells_com(masks: list, limit: int = 10, name: str=None, save: bool = F
 
 
 def get_cell_intensities(cell_number: int, tracked_cells: list, images: list):
+    """Get the mean intensities of a specified cells across all images."""
     images_count = len(images)
     mean_intensities = np.zeros(images_count)
     for i in range(images_count):
@@ -140,6 +140,7 @@ def get_cell_intensities(cell_number: int, tracked_cells: list, images: list):
 
 
 def plot_cell_intensities(cell_numbers: list, tracked_cells: list, images: list):
+    """Plot mean intensities for specified cell numbers."""
     image_count = len(images)
     x = np.linspace(0,0+(10*image_count), image_count, endpoint=False)
 
@@ -157,6 +158,7 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list, images: list)
 
 
 def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=True):
+    """Calculate correlation of the intensity between all cells in the images."""
     intensities = []
     if all_cells:
         cell_numbers = range(1, np.max(tracked_cells)+1)
@@ -190,7 +192,7 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
 
 
 def get_common_cells(tracked_masks):
-    """Returns the cell numbers that are common for all images."""
+    """Returns the cell numbers that are common for all images, i.e. cells that never disappear."""
     numbers_lists = []
     for image in tracked_masks:
         numbers_lists.append(np.unique(image))
@@ -202,7 +204,8 @@ def get_common_cells(tracked_masks):
     
 
 def get_cross_correlation_by_distance(ref_cell: int, tracked_masks, images, plot=True):
-    # Only use cells that appear in all images.
+    """Get cross correlation as a function of distance from a specified cell. Only
+    uses cells that are common for all images."""
     cell_numbers = get_common_cells(tracked_masks)
     coms, roi_count = get_centers_of_mass(tracked_masks[0])
     com_ref = coms[ref_cell-1]
@@ -243,13 +246,13 @@ def main():
 
     # masks = open_masks("onehourconfluent-tracking-from-separate-files_masks.tif")
     masks = open_masks("C:/Users/hisra/Documents/Master 2023/Master2023/NewMasks_2023-07-13")
-    # masks, savedir = segmentation(image_folder_path, model_path, save = False)
+    # masks = get_segmentation(image_folder_path, model_path, save = False)
 
     images, image_names = open_images(image_folder_path)
 
     # images, image_name = open_images(image_folder_path)
 
-    # tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
+    # tracked_masks = get_tracked_masks(masks, name="onehourconfluent-tracking-from-single-file", save=True)
     # corrcoefs = correlation(masks, images, all_cells=True, plot=True)
     # get_cross_correlation_by_distance(67, masks, images)
 
