@@ -210,24 +210,24 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks, images, plot
     dist_dict = dict(zip(cell_numbers, distances[cell_numbers-1]))
     sorted_dist_dict = dict(sorted(dist_dict.items(), key=lambda item: item[1]))
 
-    x_list = []
+    dist_list = []
     cross_correlation_list = []
     intensity_ref = get_cell_intensities(ref_cell, tracked_masks, images)
 
     for c in sorted_dist_dict:
-        x_list.append(sorted_dist_dict[c])
+        dist_list.append(sorted_dist_dict[c])
         intensity_c = get_cell_intensities(c, tracked_masks, images)
         cross_correlation_list.append(np.corrcoef(intensity_ref, intensity_c)[0,1]) # Have to think through whether to use corrcoef or correlate
 
     if plot:
         plt.figure()
-        plt.plot(x_list, cross_correlation_list)
+        plt.plot(dist_list, cross_correlation_list)
         plt.xlabel("Distance from reference cell (pixels)")
         plt.ylabel("Cross correlation")
         plt.title("Cross correlation as a function of distance from reference cell.")
         plt.show()
 
-    return x_list, cross_correlation_list
+    return dist_list, cross_correlation_list
 
 
 
@@ -251,9 +251,9 @@ def main():
 
     # tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
     # corrcoefs = correlation(masks, images, all_cells=True, plot=True)
-    get_cross_correlation_by_distance(67, masks, images)
+    # get_cross_correlation_by_distance(67, masks, images)
 
-    # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], masks, images)
+    plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], masks, images)
 
 
 if __name__ == "__main__":
