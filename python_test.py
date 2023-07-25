@@ -87,7 +87,7 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
             coms.append(comsi)
     if len(masks.shape) == 2:
         labels = range(1, roi_count+1)
-        coms.append(ndimage.center_of_mass(masks,masks, labels))
+        coms = ndimage.center_of_mass(masks,masks, labels)
     return coms, roi_count
 
 
@@ -197,20 +197,37 @@ def get_common_cells(tracked_masks):
     commons = numbers_lists[0]
     for i in range(1,len(numbers_lists)):
         commons = np.intersect1d(commons, numbers_lists[i])
-    return commons
+    common_cells = commons[1:]  # First input is the number 0, which is not a cell
+    return common_cells
     
 
 def get_cross_correlation_by_distance(ref_cell: int, tracked_masks, images, plot=True):
     # Only use cells that appear in all images.
     cell_numbers = get_common_cells(tracked_masks)
     coms, roi_count = get_centers_of_mass(tracked_masks[0])
-    com_ref = coms[ref_cell]
-    print(com_ref)
-    distances = np.linalg.norm(np.array(coms)-np.array(com_ref))
+    com_ref = coms[ref_cell-1]
+    distances = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
     dist_dict = dict(zip(cell_numbers, distances[cell_numbers-1]))
     sorted_dist_dict = dict(sorted(dist_dict.items(), key=lambda item: item[1]))
-    print(sorted_dist_dict)
-    return None
+
+    x_list = []
+    cross_correlation_list = []
+    intensity_ref = get_cell_intensities(ref_cell, tracked_masks, images)
+
+    for c in sorted_dist_dict:
+        x_list.append(sorted_dist_dict[c])
+        intensity_c = get_cell_intensities(c, tracked_masks, images)
+        cross_correlation_list.append(np.corrcoef(intensity_ref, intensity_c)[0,1]) # Have to think through whether to use corrcoef or correlate
+
+    if plot:
+        plt.figure()
+        plt.plot(x_list, cross_correlation_list)
+        plt.xlabel("Distance from reference cell (pixels)")
+        plt.ylabel("Cross correlation")
+        plt.title("Cross correlation as a function of distance from reference cell.")
+        plt.show()
+
+    return x_list, cross_correlation_list
 
 
 
