@@ -170,8 +170,8 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=
 def main():
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/Confluent_images"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
+    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
+    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
     model_path = 'C:/Users/workstation3/Documents/Hannas_models/CP_20230705_confl'
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/CBXoua202307"
 
@@ -191,7 +191,7 @@ def main():
 
     # images, image_name = open_images(image_folder_path)
 
-    tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
+    tracked_masks = track_cells_com(masks, name="CBX-ouabain-10_singlefile", save=True)
     # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
 
     # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], masks, images)
