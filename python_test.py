@@ -12,19 +12,27 @@ import matplotlib.pyplot as plt
 
 
 def get_segmentation(image_path: str, model_path: str, diam: int=40,
-                     save: bool=False, savedir: str=None) -> list:
+                     save: bool=False, savedir: str=None,
+                     track: bool=True) -> list:
     """Takes an image and segments it with the given model. 
     Returns segmentation mask."""
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
-    imgs, name = open_image_stack(image_path)   # Change to open_images if
+    imgs = open_image_stack(image_path)   # Change to open_images if
                                                 # images are separate and not
                                                 # in a stack
     # imgs, name = open_images(image_path)
     masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0],
                                       flow_threshold=0.4, do_3D = False)
-    if save:
+    masks = np.array(masks)
+    
+    name=splitext(basename(image_path))[0]
+
+    if track:
+        masks = get_tracked_masks(masks=masks, save=save, name=name, savedir=savedir)
+
+    if save and not track:
         _save_masks(savedir=savedir, masks=masks,
-                    name=splitext(basename(image_path))[0])
+                    name=name)
     return masks
 
 
@@ -41,8 +49,7 @@ def open_image_stack(image_path: str):
     """Opens a tiff file."""
     img = imread(image_path)
     stack = [np.array(i) for i in img] # Necessary for correct segmentation
-    name = splitext(basename(image_path))[0]
-    return stack, name
+    return stack
 
 
 def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
@@ -58,7 +65,7 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
     return None
 
 
-def get_roi_count(masks: list):
+def get_roi_count(masks):
     """Returns the number of ROI's in each image (mask) as a list."""
     if len(masks.shape) == 3:
         roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1
@@ -75,6 +82,7 @@ def get_roi_count(masks: list):
 #     file_names = glob.glob(folder + '/*_masks.tif')
 #     masks = [imread(mask) for mask in file_names]
 #     return masks
+
 
 def open_masks(file_path):
     return imread(file_path)
@@ -97,7 +105,7 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
 
 
 def get_tracked_masks(masks: list, limit: int = 10, name: str=None,
-                      save: bool = False) -> list:
+                      save: bool = False, savedir: str=None) -> list:
     """Tracks cells and returns a list of masks where each cell is given
     the same number in every mask."""
     tracked_masks = np.zeros_like(masks)
@@ -253,41 +261,26 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
         plt.plot(dist_list, cross_correlation_list)
         plt.xlabel("Distance from reference cell (pixels)")
         plt.ylabel("Cross correlation")
-        plt.title("Cross correlation as a function of distance from \
-                  reference cell.")
+        plt.title("Cross correlation as a function of distance from reference cell.")
         plt.show()
 
     return dist_list, cross_correlation_list
 
 
-
-
 def main():
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/Confluent_images"
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging/ctl-01.tif"
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
-    
-    model_path = 'C:/Users/workstation3/Documents/Hannas_models/CP_20230705_confl'
-    # image_folder_path = "C:/Users/hisra/Documents/Master 2023/Master2023/short"
-    # model_path = "C:/Users/workstation3/Documents/Hannas_models/CBXoua202307"
+    model_path = "C:/Users/workstation3/Documents/Hannas_models/CellPoseModel-01"
+    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
+    masks = get_segmentation(images_path, model_path, diam = 35, save=True, savedir="//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25")
 
-    # masks = open_masks("onehourconfluent-tracking-from-separate-files_masks.tif")
-    masks = open_masks("C:/Users/hisra/Documents/Master 2023/Master2023/NewMasks_2023-07-13")
-    # masks = get_segmentation(image_folder_path, model_path, save = False)
+    # masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/control_masks.tif"
+    # masks = open_masks(masks_path)
+    images = open_image_stack(images_path)
 
-    # images, image_names = open_images(image_folder_path)
+    # get_cross_correlation_by_distance(17, masks, images, plot=True)
+    cells = get_common_cells(masks)
+    plot_cell_intensities(cells, masks, images)
 
-    # images, image_name = open_images(image_folder_path)
-
-    tracked_masks = get_tracked_masks(masks, name="ctl-01-tracked-masks", save=True, savedir = "2023-07-11-imaging/masks")
-    # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
-    # tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
-    # corrcoefs = correlation(masks, images, all_cells=True, plot=True)
-    # get_cross_correlation_by_distance(67, masks, images)
-
-    # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], tracked_masks, images)
-
+    # print(get_common_cells(masks))
 
 if __name__ == "__main__":
     main()
