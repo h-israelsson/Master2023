@@ -57,9 +57,13 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
     return None
 
 
-def get_roi_count(masks: list) -> list:
+def get_roi_count(masks: list):
     """Get the number of ROI's in each mask"""
-    return [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
+    if len(masks.shape) == 3:
+        roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1 bc regions with 0 do not count as roi:s
+    if len(masks.shape) == 2:
+        roi_count = len(np.unique(masks))-1
+    return roi_count
 
 
 # def open_masks(folder: str) -> list:
@@ -73,18 +77,21 @@ def open_masks(file_path):
 
 
 def get_centers_of_mass(masks: list) -> Tuple[list, list]:
-    """Returns a list with coordinates for centers of mass for each cell in each image
-    on the form [[(coordinate of c1, im1), (coordinates)]]"""
+    """Returns a list with coordinates for centers of mass for each cell in each image."""
     coms = []
     roi_count = get_roi_count(masks)
-    for i in range(len(masks)):
-        labels = range(1, roi_count[i]+1)
-        comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
-        coms.append(comsi)      
+    if len(masks.shape) == 3:
+        for i in range(masks.shape[0]):
+            labels = range(1, roi_count[i]+1)
+            comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
+            coms.append(comsi)
+    if len(masks.shape) == 2:
+        labels = range(1, roi_count+1)
+        coms = ndimage.center_of_mass(masks,masks, labels)
     return coms, roi_count
 
 
-def track_cells_com(masks: list, limit: int = 10, name: str=None, save: bool = False) -> list:
+def track_cells_com(masks: list, limit: int = 10, name: str=None, save: bool = False, savedir:str = None) -> list:
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
     COMs, roi_count = get_centers_of_mass(masks)
@@ -115,7 +122,7 @@ def track_cells_com(masks: list, limit: int = 10, name: str=None, save: bool = F
 
     if save:
         # savedir = "NewMasks_"+str(date.today())
-        _save_masks(tracked_masks, name=name)
+        _save_masks(tracked_masks, name=name, savedir=savedir)
 
     return tracked_masks
 
@@ -149,52 +156,107 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list, images: list)
     return None
 
 
-def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=False):
+def correlation(tracked_cells, images, cell_numbers=None, all_cells=False, plot=True):
     intensities = []
     if all_cells:
-        cell_numbers = range(np.max(tracked_cells))
+        cell_numbers = range(1, np.max(tracked_cells)+1)
+    corrcoefs = np.zeros((len(cell_numbers), len(cell_numbers)))
     
-    for cell_number in cell_numbers:
+    for cell_number, j in zip(cell_numbers, range(len(cell_numbers))):
         intensities.append(get_cell_intensities(cell_number, tracked_cells, images))
-    corrcoefs = np.corrcoef(intensities)
+        for i in range(j+1):
+            corrcoefs[i, j] = np.correlate(intensities[i], intensities[j])
 
     if plot:
-        plt.matshow(corrcoefs)
+        if all_cells:
+            idx = np.round(np.linspace(0, len(list(cell_numbers)) - 1, 10, dtype='int'))
+            tick_labels = [str(c) for c in idx]
+        else:
+            idx = cell_numbers
+            tick_labels = [str(c) for c in cell_numbers]
+        print(tick_labels)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        cax = ax.matshow(corrcoefs)
         plt.title("Correlation coefficients")
-        plt.colorbar(label="Correlation", orientation="vertical", fraction=0.046, pad=0.04)
+        fig.colorbar(cax, label="Correlation", orientation="vertical")#, fraction=0.046, pad=0.04)
+        ax.set_xticks(idx)
+        ax.set_yticks(idx)
+        ax.set_xticklabels(tick_labels)
+        ax.set_yticklabels(tick_labels)
         plt.show()
 
     return corrcoefs
 
 
+def get_common_cells(tracked_masks):
+    """Returns the cell numbers that are common for all images."""
+    numbers_lists = []
+    for image in tracked_masks:
+        numbers_lists.append(np.unique(image))
+    commons = numbers_lists[0]
+    for i in range(1,len(numbers_lists)):
+        commons = np.intersect1d(commons, numbers_lists[i])
+    common_cells = commons[1:]  # First input is the number 0, which is not a cell
+    return common_cells
+    
+
+def get_cross_correlation_by_distance(ref_cell: int, tracked_masks, images, plot=True):
+    # Only use cells that appear in all images.
+    cell_numbers = get_common_cells(tracked_masks)
+    coms, roi_count = get_centers_of_mass(tracked_masks[0])
+    com_ref = coms[ref_cell-1]
+    distances = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
+    dist_dict = dict(zip(cell_numbers, distances[cell_numbers-1]))
+    sorted_dist_dict = dict(sorted(dist_dict.items(), key=lambda item: item[1]))
+
+    dist_list = []
+    cross_correlation_list = []
+    intensity_ref = get_cell_intensities(ref_cell, tracked_masks, images)
+
+    for c in sorted_dist_dict:
+        dist_list.append(sorted_dist_dict[c])
+        intensity_c = get_cell_intensities(c, tracked_masks, images)
+        cross_correlation_list.append(np.corrcoef(intensity_ref, intensity_c)[0,1]) # Have to think through whether to use corrcoef or correlate
+
+    if plot:
+        plt.figure()
+        plt.plot(dist_list, cross_correlation_list)
+        plt.xlabel("Distance from reference cell (pixels)")
+        plt.ylabel("Cross correlation")
+        plt.title("Cross correlation as a function of distance from reference cell.")
+        plt.show()
+
+    return dist_list, cross_correlation_list
+
+
+
+
 def main():
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/Confluent_images"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/Ouabain_image_stack/short"
-    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging-2/2023-07-11/CBX-ouabain-10.tif"
+    image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/2023-07-11-imaging/ctl-01.tif"
     # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
+    
     model_path = 'C:/Users/workstation3/Documents/Hannas_models/CP_20230705_confl'
+    # image_folder_path = "C:/Users/hisra/Documents/Master 2023/Master2023/short"
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/CBXoua202307"
 
     # masks = open_masks("onehourconfluent-tracking-from-separate-files_masks.tif")
+    # masks = open_masks("C:/Users/hisra/Documents/Master 2023/Master2023/NewMasks_2023-07-13")
     masks, savedir = segmentation(image_folder_path, model_path, save = False)
 
-    # images0, image_names = open_images(image_folder_path)
-    # # print(type(images0), len(images0))
-
-    # image_folder_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Data_from_Emma/onehourconfluent/onehourrecording-hbss-nd5-10percent.tif"
-    # images1, image_names = open_image_stack(image_folder_path)
-    # input("Press enter to continue")
-    # print(type(images1), len(images1))
-    # print(np.setdiff1d)
-    # input("Press enter to continue")
-    # print(list(set(images1)-set(images0)))
+    # images, image_names = open_images(image_folder_path)
 
     # images, image_name = open_images(image_folder_path)
 
-    tracked_masks = track_cells_com(masks, name="CBX-ouabain-10_singlefile", save=True)
+    tracked_masks = track_cells_com(masks, name="ctl-01-tracked-masks", save=True, savedir = "2023-07-11-imaging/masks")
     # corrcoefs = correlation(tracked_masks, images, all_cells=True, plot=True)
+    # tracked_masks = track_cells_com(masks, name="onehourconfluent-tracking-from-single-file", save=True)
+    # corrcoefs = correlation(masks, images, all_cells=True, plot=True)
+    # get_cross_correlation_by_distance(67, masks, images)
 
-    # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], masks, images)
+    # plot_cell_intensities([54,55,56,57, 58, 59, 60, 61], tracked_masks, images)
 
 
 if __name__ == "__main__":
