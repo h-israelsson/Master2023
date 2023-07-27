@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 def get_segmentation(image_path: str, model_path: str, diam: int=40,
                      save: bool=False, savedir: str=None,
-                     track: bool=True) -> list:
+                     track: bool=True, name: str=None) -> list:
     """Takes an image and segments it with the given model. 
     Returns segmentation mask."""
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
@@ -25,7 +25,8 @@ def get_segmentation(image_path: str, model_path: str, diam: int=40,
                                       flow_threshold=0.4, do_3D = False)
     masks = np.array(masks)
     
-    name=splitext(basename(image_path))[0]
+    if name == None:
+        name=splitext(basename(image_path))[0]
 
     if track:
         masks = get_tracked_masks(masks=masks, save=save, name=name, savedir=savedir)
@@ -95,7 +96,8 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     roi_count = get_roi_count(masks)
     if len(masks.shape) == 3:
         for i in range(masks.shape[0]):
-            labels = range(1, roi_count[i]+1)
+            labels = np.unique(masks[i])
+            labels = np.delete(labels, np.where(labels == 0))
             comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
             coms.append(comsi)
     if len(masks.shape) == 2:
@@ -104,7 +106,7 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     return coms, roi_count
 
 
-def get_tracked_masks(masks: list, limit: int = 10, name: str=None,
+def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                       save: bool = False, savedir: str=None) -> list:
     """Tracks cells and returns a list of masks where each cell is given
     the same number in every mask."""
@@ -126,8 +128,8 @@ def get_tracked_masks(masks: list, limit: int = 10, name: str=None,
                                            - np.array(COMs[imnr][comnr]),
                                            axis=1)
                 min_distance = np.min(distances)
-                # If the smallest one is smaller than the limit, exit loop
-                if min_distance < limit:
+                # If the smallest one is smaller than the dist_limit, exit loop
+                if min_distance < dist_limit:
                     ref_im_idx = imnr-k
                     mcc = COMs[ref_im_idx][np.argmin(distances)] # matched
                                                                  # cell
@@ -160,6 +162,8 @@ def get_cell_intensities(cell_number: int, tracked_cells: list, images: list):
         intensities = images[i]
         mean_intensities[i] = np.mean(intensities[tracked_cells[i]
                                                   == cell_number])
+    print(np.mean(mean_intensities)-np.min(mean_intensities))
+    input("Press enter to continue.")
     relative_intensities = (mean_intensities - np.min(mean_intensities))/\
         (np.mean(mean_intensities)-np.min(mean_intensities))
     return relative_intensities
@@ -226,12 +230,12 @@ def get_common_cells(tracked_masks,
                      ):
     """Returns the cell numbers that are common for all images,
     i.e. cells that never disappear."""
-    cell_numbers = []
+    cell_numbers = np.empty(len(tracked_masks))
     commons = []
     counts = []
-    for i in range(len(tracked_masks)):
-        cell_numbers.append(np.unique(tracked_masks[i]))
     limit = (percentage/100)*len(tracked_masks)
+    for i in range(len(tracked_masks)):
+        cell_numbers[i] = np.unique(tracked_masks[i])
     for i in np.unique(cell_numbers.flatten()):
         count = np.count_nonzero(cell_numbers = i)
         if i == 0:
@@ -287,17 +291,25 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
 
 
 def main():
-    model_path = "C:/Users/workstation3/Documents/Hannas_models/CellPoseModel-01"
+    # model_path = "C:/Users/workstation3/Documents/Hannas_models/CellPoseModel-01"
     images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
-    masks = get_segmentation(images_path, model_path, diam = 35, save=True, savedir="//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25")
+    # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25"
+    # name = "ouabain2_generoustracking"
+    # masks = get_segmentation(images_path, model_path, diam = 35, save=True, savedir=savedir, name=name)
 
-    # masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/control_masks.tif"
-    # masks = open_masks(masks_path)
-    images = open_image_stack(images_path)
+    masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_masks.tif"
+    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_generoustracking_masks.tif"
+    masks = open_masks(masks_path)
+    masks2 = open_masks(masks_path2)
+
+    # images = open_image_stack(images_path)
 
     # get_cross_correlation_by_distance(17, masks, images, plot=True)
     cells = get_common_cells(masks)
-    plot_cell_intensities(cells, masks, images)
+    cells2 = get_common_cells(masks2)
+    print("Cells " + str(cells))
+    print("Cells2 " + str(cells2))
+    # plot_cell_intensities(cells, masks, images)
 
     # print(get_common_cells(masks))
 
