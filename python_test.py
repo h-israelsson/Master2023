@@ -111,12 +111,13 @@ def get_tracked_masks(masks: list, limit: int = 10, name: str=None,
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
     COMs, roi_count = get_centers_of_mass(masks)
+    backtrack_limit = 5
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         new_cells = 0
         for comnr in range(roi_count[imnr]):
             ref_im_idx = -10
-            for k in range(1,5):
+            for k in range(1,backtrack_limit):
                 # Get all distances between centers of mass of one
                 # image and the one before.
                 if imnr-k<0:
@@ -181,7 +182,7 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list,
     return None
 
 
-def correlation(tracked_cells, images, cell_numbers=None, all_cells=False,
+def get_correlation_matrix(tracked_cells, images, cell_numbers=None, all_cells=False,
                 plot=True):
     """Calculate correlation of the intensity between all cells
     in the images."""
@@ -219,18 +220,36 @@ def correlation(tracked_cells, images, cell_numbers=None, all_cells=False,
     return corrcoefs
 
 
-def get_common_cells(tracked_masks):
+def get_common_cells(tracked_masks,
+                     percentage=100 # The percentage of images the cell must
+                                    # be in to be counted.
+                     ):
     """Returns the cell numbers that are common for all images,
     i.e. cells that never disappear."""
-    numbers_lists = []
-    for image in tracked_masks:
-        numbers_lists.append(np.unique(image))
-    commons = numbers_lists[0]
-    for i in range(1,len(numbers_lists)):
-        commons = np.intersect1d(commons, numbers_lists[i])
-    common_cells = commons[1:]  # First input is the number 0,
-                                # which is not a cell
-    return common_cells
+    cell_numbers = []
+    commons = []
+    counts = []
+    for i in range(len(tracked_masks)):
+        cell_numbers.append(np.unique(tracked_masks[i]))
+    limit = (percentage/100)*len(tracked_masks)
+    for i in np.unique(cell_numbers.flatten()):
+        count = np.count_nonzero(cell_numbers = i)
+        if i == 0:
+            continue
+        if count >= limit:
+            commons.append(i)
+            counts.append(count)
+    return commons
+
+    # numbers_lists = []
+    # for image in tracked_masks:
+    #     numbers_lists.append(np.unique(image))
+    # commons = numbers_lists[0]
+    # for i in range(1,len(numbers_lists)):
+    #     commons = np.intersect1d(commons, numbers_lists[i])
+    # common_cells = commons[1:]  # First input is the number 0,
+    #                             # which is not a cell
+    # return common_cells
     
 
 def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
