@@ -13,23 +13,22 @@ import matplotlib.pyplot as plt
 def get_segmentation(image_path: str, model_path: str, diam: int=40,
                      save: bool=False, savedir: str=None,
                      track: bool=True, name: str=None) -> list:
-    """Takes an image and segments it with the given model. 
-    Returns segmentation mask."""
-    model = models.CellposeModel(gpu = True, pretrained_model=model_path)
-    imgs = open_image_stack(image_path)   # Change to open_images if
-                                                # images are separate and not
-                                                # in a stack
-    # imgs, name = open_images(image_path)
-    masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0],
-                                      flow_threshold=0.4, do_3D = False)
-    masks = np.array(masks)
+    """Takes an image stack and segments each image separately with
+    the given model.
     
+    Returns segmentation mask."""
+
     if name == None:
         name=splitext(basename(image_path))[0]
 
+    model = models.CellposeModel(gpu = True, pretrained_model=model_path)
+    imgs = open_image_stack(image_path)
+    masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0],
+                                      flow_threshold=0.4, do_3D = False)
+    masks = np.array(masks)
+
     if track:
         masks = get_tracked_masks(masks=masks, save=save, name=name, savedir=savedir)
-
     if save and not track:
         _save_masks(savedir=savedir, masks=masks,
                     name=name)
@@ -63,25 +62,6 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
             makedirs(savedir)
         imwrite(savedir+"\\"+name+"_masks.tif", masks)
     return None
-
-
-# def get_roi_count(masks):
-#     """Returns the number of ROI's in each image (mask) as a list."""
-#     if len(masks.shape) == 3:
-#         roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1
-#                                                          # bc regions with
-#                                                          # 0 do not count as
-#                                                          # roi:s
-#     if len(masks.shape) == 2:
-#         roi_count = len(np.unique(masks))-1
-#     return roi_count
-
-
-# def open_masks(folder: str) -> list:
-#     """Load ready-made masks from specified folder."""
-#     file_names = glob.glob(folder + '/*_masks.tif')
-#     masks = [imread(mask) for mask in file_names]
-#     return masks
 
 
 def open_masks(file_path):
@@ -283,16 +263,6 @@ def get_common_cells(tracked_masks, percentage=98):
             counts.append(count)
 
     return commons, counts
-
-    # numbers_lists = []
-    # for image in tracked_masks:
-    #     numbers_lists.append(np.unique(image))
-    # commons = numbers_lists[0]
-    # for i in range(1,len(numbers_lists)):
-    #     commons = np.intersect1d(commons, numbers_lists[i])
-    # common_cells = commons[1:]  # First input is the number 0,
-    #                             # which is not a cell
-    # return common_cells
     
 
 def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
