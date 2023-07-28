@@ -10,7 +10,6 @@ from tifffile import imwrite
 from os.path import abspath, basename, splitext, exists
 import matplotlib.pyplot as plt
 
-
 def get_segmentation(image_path: str, model_path: str, diam: int=40,
                      save: bool=False, savedir: str=None,
                      track: bool=True, name: str=None) -> list:
@@ -111,12 +110,16 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
 
 def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                       save: bool = False, savedir: str=None,
-                      backtrack_limit: int=5) -> list:
+                      backtrack_limit: int=5,
+                      random_labels: bool=False) -> list:
     """Tracks cells and returns a list of masks where each cell is given
     the same number in every mask."""
     tracked_masks = np.zeros_like(masks)
-    tracked_masks[0] = masks[0]
     COMs, roi_labels = get_centers_of_mass(masks)
+    if random_labels:
+        tracked_masks[0] = assign_random_cell_labels(masks[0])
+    else:
+        tracked_masks[0] = masks[0]
 
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
@@ -170,6 +173,19 @@ def get_cell_intensities(cell_number: int, tracked_cells: list, images: list):
     relative_intensities = (mean_intensities - np.min(mean_intensities))/\
         (np.mean(mean_intensities)-np.min(mean_intensities))
     return relative_intensities
+
+
+def assign_random_cell_labels(mask: list):
+    """Assign random labels to the elements in mask. Only provide one single
+    mask, not a whole list of masks! Zero labels remain zero."""
+    labels = np.unique(mask[mask!=0])
+    random_labels = labels.copy()
+    np.random.shuffle(random_labels)
+    randomized_mask = np.zeros_like(mask)
+    for lbl, rnd_lbl in zip(labels, random_labels):
+        lbl_coords = np.argwhere(mask.flatten() == lbl)
+        np.put(randomized_mask, lbl_coords, rnd_lbl)
+    return randomized_mask
 
 
 def plot_cell_intensities(cell_names: list, tracked_cells: list,
@@ -304,7 +320,8 @@ def main():
     # masks2 = open_masks(masks_path2)
 
     # images = open_image_stack(images_path)
-    get_tracked_masks(masks, name='ouabain2_test', save=True, savedir=savedir)
+    get_tracked_masks(masks, name='ouabain2_btl15_distl20_rnd', save=True, savedir=savedir,
+                      backtrack_limit=15, dist_limit=20, random_labels=True)
 
     # get_cross_correlation_by_distance(17, masks, images, plot=True)
     # cells, counts = get_common_cells(masks)
