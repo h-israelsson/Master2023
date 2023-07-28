@@ -3,30 +3,63 @@ from cellpose.io import imread, get_image_files
 import numpy as np
 from os import makedirs
 from datetime import date
-import glob
 from scipy import ndimage
 from typing import Tuple
 from tifffile import imwrite
-from os.path import abspath, basename, splitext, exists
+from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
 
-def get_segmentation(image_path: str, model_path: str, diam: int=40,
-                     save: bool=False, savedir: str=None,
-                     track: bool=True, name: str=None) -> list:
-    """Takes an image stack and segments each image separately with
-    the given model.
+def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
+                     track=True, name=None):
+    """ segment an image
     
-    Returns segmentation mask."""
+    Takes an image stack and segments each image separately with
+    the given model.
 
-    if name == None:
-        name=splitext(basename(image_path))[0]
+    Parameters
+    ---------------
+
+    image_path: str
+        the path to the image to be segmented
+
+    model_path: str
+        the path to the model to use for segmenting
+
+    diam: int (optional)
+        approximate diameter of the cells in pixels. View the image in
+        Cellpose API to get an idea of this value.
+
+    save: bool (optional)
+        if True, the masks will be saved as a single .tif file
+
+    savedir: str (optional)
+        the path to the directory in which to save the generated masks.
+
+    track: bool (optional)
+        if True, the cells are tracked using the standard variables in
+        get_tracked_cells. For tuning of the tracking, use get_tracked_cells
+        directly.
+
+    name: str (optional)
+        name of the .tif file to which the masks will be saved. "_masks.tif"
+        is always added to the end of the name. If None, the name will be
+        "[image name]_masks.tif". See _save_masks() for further details.
+
+    Returns
+    ---------------
+
+    masks: 3D array
+        the generated masks.
+    """
 
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
     imgs = open_image_stack(image_path)
-    masks, flows, styles = model.eval(imgs, diameter=diam, channels = [0,0],
-                                      flow_threshold=0.4, do_3D = False)
+    masks, flows, styles = model.eval(imgs, diameter=diam, channels=[0,0],
+                                      flow_threshold=0.4, do_3D=False)
     masks = np.array(masks)
 
+    if name == None:
+        name=splitext(basename(image_path))[0]
     if track:
         masks = get_tracked_masks(masks=masks, save=save, name=name, savedir=savedir)
     if save and not track:
@@ -35,24 +68,51 @@ def get_segmentation(image_path: str, model_path: str, diam: int=40,
     return masks
 
 
-def open_images(image_folder_path):
-    """Opens separate images."""
-    files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
-    imgs = [imread(f) for f in files]
-    # names = [basename(f) for f in files]
-    names = "Hello!"
-    return imgs, names
+# def open_images(image_folder_path):
+#     """Opens separate images."""
+#     files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
+#     imgs = [imread(f) for f in files]
+#     # names = [basename(f) for f in files]
+#     names = "Hello!"
+#     return imgs, names
 
 
-def open_image_stack(image_path: str):
-    """Opens a tiff file."""
+def open_image_stack(image_path):
+    """ open a .tif file of images
+    
+    Modifies the data to work with the segmentation function.
+
+    Parameters
+    ---------------
+    image_path: str
+        the path to the image to be opened
+    Returns
+    ---------------
+    stack: 3D array
+        the image stack as a 3D array
+    """
     img = imread(image_path)
     stack = [np.array(i) for i in img] # Necessary for correct segmentation
     return stack
 
 
-def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
-    """Saves masks as single tif file."""
+def _save_masks(masks, name=None, savedir=None) -> None:
+    """ save masks as single .tif file
+
+    Parameters
+    ---------------
+    masks: 3D array
+        the masks to be saved.
+    name: str (optional)
+        name of the file to be saved. Default name is 
+        '[today's date]_masks.tif'. '_masks.tif' is always added to the name.
+    savedir: str (optional)
+        the directory in which to save the file. Default to save in current
+        folder.
+    Returns
+    ---------------
+        None
+    """
     if name == None:
         name = str(date.today())
     if savedir == None:
@@ -65,12 +125,39 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
 
 
 def open_masks(file_path):
-    return imread(file_path)
+    """ open a mask file
+    
+    This function only exists because of previous problems with reading the
+    mask files. It is actally really simple and the function is probably 
+    totally unnecessary.
+    Parameters
+    ---------------
+    file_path: str
+        the path to the .tif file of the segmented images (masks).
+    Returns
+    ---------------
+    masks: 3D array
+        an array with all the masks for the images.
+    """
+    masks = imread(file_path)
+    return masks
 
 
-def get_cell_labels(masks: list):
-    """Get a list of what labels the cells have in each image."""
+def get_cell_labels(masks):
+    """ obtain a list of cell labels
 
+    Finds all labels in each segmented image and returns these as a 
+    2D array consisting of lists with all labels for each image.
+    Parameters
+    ---------------
+    masks: 2D or 3D array
+        previously generated masks
+    Returns
+    ---------------
+    all_labels: 1D or 2D list
+        If masks are 2D, a list of all labels is returned.
+        If masks are 3D, a list of this kind of lists is returned.
+    """
     if len(masks.shape) == 3:
         all_labels = []
         for mask in masks:
@@ -82,38 +169,76 @@ def get_cell_labels(masks: list):
     return all_labels
 
 
-def get_centers_of_mass(masks: list) -> Tuple[list, list]:
-    """Returns a list with center of mass coordinates for each
-    cell in each image."""
+def get_centers_of_mass(masks):
+    """ get centers of mass for each cell
 
+    Calculates the coordinates for the center of mass for each cell in each
+    image.
+    Parameters
+    ---------------
+    masks: 2D or 3D array
+        previously generated segmentation mask(s)
+    Returns
+    ---------------
+    COMs: 1D or 2D list of tuples
+        all coordinates of centers of mass, sorted by image if masks are 3D
+    labels: 1D or 2D list
+        the labels of all the cells, in the same order as the centers of mass
+    """
     labels = get_cell_labels(masks)
-
     if len(masks.shape) == 3:
-        coms = []
+        COMs = []
         for i in range(masks.shape[0]):
-            coms_i = ndimage.center_of_mass(masks[i], masks[i], labels[i])
-            coms.append(coms_i)
-
+            COMs_i = ndimage.center_of_mass(masks[i], masks[i], labels[i])
+            COMs.append(COMs_i)
     if len(masks.shape) == 2:
-        coms = ndimage.center_of_mass(masks, masks, labels)
+        COMs = ndimage.center_of_mass(masks, masks, labels)
+    return COMs, labels
 
-    return coms, labels
 
+def get_tracked_masks(masks, dist_limit=10, backtrack_limit=5, random_labels=False,
+                      save=False, name=None, savedir=None):
+    """ track the cells
 
-def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
-                      save: bool = False, savedir: str=None,
-                      backtrack_limit: int=5,
-                      random_labels: bool=False) -> list:
-    """Tracks cells and returns a list of masks where each cell is given
-    the same number in every mask."""
+    Tracks cells and returns a list of masks, where each separate 
+    cell is given the same label (integer number) in every mask.
+    Parameters
+    ---------------
+    masks: 3D array
+        previously generated segmentation of cells
+    dist_limit: int (optional)
+        the longest distance, in pixels, that the center of mass is allowed
+        to move from one image to the next for it to still count as the same
+        cell
+    backtrack_limit: int (optional)
+        the maximum number of images back that the algorithm will search
+        through to find a center of mass within the distance limit
+        (dist_limit)
+    random_labels: bool
+        if True, the cells will be assigned random lables from the start,
+        rather than keeping the labels from the first image in masks
+    save: bool (optional)
+        if True, the masks are saved as a single .tif file
+    name: str (optional)
+        name of the file to be saved. Default name is '[today's date]'.
+        '_masks.tif' is always added to the name.
+    savedir: str (optional)
+        the directory in which to save the file. Default to save in current
+        folder.
+    Returns
+    ---------------
+    tracked_masks: 3D array
+        an aray with the same masks as given as input, but updated labels to
+        match between images.
+    """
     tracked_masks = np.zeros_like(masks)
     COMs, roi_labels = get_centers_of_mass(masks)
+
     if random_labels:
         tracked_masks[0] = assign_random_cell_labels(masks[0])
     else:
         tracked_masks[0] = masks[0]
 
-    # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         new_cells = 0
         ROI_labels_imnr = roi_labels[imnr]
@@ -152,10 +277,26 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
     return tracked_masks
 
 
-def get_cell_intensities(cell_label: int, tracked_cells: list, images: list):
-    """Get the mean intensities of a specified cells across all images.
-    If the cell does not appear in an image, the intensity is set to 0
-    for that image."""
+def get_cell_intensities(cell_label, tracked_cells, images):
+    """ get the realtive mean intensities for specified cell in every image
+    
+    Calculates the relative mean intensity for specified cell in each image.
+    If the cell does not appear in one of the images, the intensity will be
+    set to zero in that image.
+    Parameters
+    ---------------
+    cell_label: int
+        the label of the cell for which the intensities should be calculated
+    tracked_cells: 3D array
+        previously tracked masks from which to get the cell locations
+    images: 3D array
+        The images from which the tracked cells mask was generated and the
+        intensity should be retrieved from
+    Returns
+    ---------------
+    relative_intensities: 1D array
+        mean relative intensity of the cell for each image
+    """
     images_count = len(images)
     mean_intensities = np.zeros(images_count)
 
@@ -172,10 +313,21 @@ def get_cell_intensities(cell_label: int, tracked_cells: list, images: list):
     return relative_intensities
 
 
-def assign_random_cell_labels(mask: list):
-    """Assign random labels to the elements in mask. Only provide one single
-    mask, not a whole list of masks! Zero labels remain zero."""
+def assign_random_cell_labels(mask):
+    """ assign random cell labels to mask
 
+    Please, only provide one single mask, not a whole 3D array.
+    Zero labels remain zero.
+    Parameters
+    ---------------
+    mask: 2D array
+        the mask for which the labels should be changed
+    Returns
+    ---------------
+    randomized_mask: 2D array
+        a mask with the labels shuffled around, but the general
+        segmentation still remaining intact
+    """
     labels = np.unique(mask[mask!=0])
     random_labels = labels.copy()
     np.random.shuffle(random_labels)
@@ -186,10 +338,21 @@ def assign_random_cell_labels(mask: list):
     return randomized_mask
 
 
-def plot_cell_intensities(cell_labels: list, tracked_cells: list,
-                          images: list):
-    """Plot mean intensities for specified cell labels."""
-
+def plot_cell_intensities(cell_labels, tracked_cells, images):
+    """ plot relative mean intensities for specified cells
+    
+    Parameters
+    ---------------
+    cell_labels: list of ints
+        list of of the labels of the cells which intensities should be plotted
+    tracked_cells: 3D array
+        tracked segmentation mask
+    images: 3D array
+        the images from which the intensities should be taken
+    Returns
+    ---------------
+    None
+    """
     period = 10 # The period between each image
     image_count = len(images)
     x = np.linspace(0,0+(period*image_count), image_count, endpoint=False)
@@ -208,12 +371,29 @@ def plot_cell_intensities(cell_labels: list, tracked_cells: list,
     return None
 
 
-def get_correlation_matrix(tracked_cells, images, cell_labels=None, all_cells=False,
-                plot=True):
-    """Calculate and plot correlation of the intensity between all cells
-    in the images."""
+def get_correlation_matrix(tracked_cells, images, cell_labels=None,
+                           plot=True):
+    """ calculate and plot correlation matrix
+    
+    Uses cross correlation to generate a matrix of correlations between the
+    cells given by cell_labels.
+    Parameters
+    ---------------
+    tracked_cells: 3D array
+        previously tracked segmentation mask
+    images: 3D array
+        images from which the tracked_cells segmentation mask was generated
+    cell_labels: list (optional)
+        the cells for which the correlation should be calculated. Default all cells.
+    plot: bool (optional)
+        whether to plot the resulting matrix or not.
+    Returns
+    ---------------
+    corrcoefs: 2D array
+        the correlation coefficients as a matrix
+        """
     intensities = []
-    if all_cells:
+    if not cell_labels:
         cell_labels = range(1, np.max(tracked_cells)+1)
     corrcoefs = np.zeros((len(cell_labels), len(cell_labels)))
     
@@ -247,8 +427,24 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None, all_cells=Fa
 
 
 def get_common_cells(tracked_masks, percentage=98):
-    """Returns the cell labels that are common for 'percentage'
-    percent of the images."""
+    """ get the cells that appear in at least [percentage] number of images
+    
+    Parameters
+    ---------------
+    tracked_masks: 3D array
+        previously tracked segmentation masks
+    percentage: int (optional)
+        the smallest percentage of images that the cell is allowed to appear
+        in to still be taken into account
+    Returns
+    ---------------
+    commons: list
+        a list of labels of the cells that fullfill the given requirements of
+        how many images they need to appear in
+    counts: list
+        a list of the number of times a specific cell appears in the images,
+        in the same order as 'commons'
+    """
 
     cell_labels = get_cell_labels(tracked_masks)
     commons = []
@@ -267,9 +463,28 @@ def get_common_cells(tracked_masks, percentage=98):
 
 def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
                                       images, plot=True):
-    """Get cross correlation as a function of distance from a specified cell.
-    The specified cell has to be in the first image"""
+    """ get cross correlation as a function of distance from a reference cell
 
+    The reference cell has to appear in the first image.
+    Parameters
+    ---------------
+    ref_cell: int
+        the label of the cell that the distances should be compared with
+    tracked_masks: 3D array
+        previously tracked segmentation masks
+    images: 3D array
+        images from which the tracked_cells segmentation mask was generated
+    plot: bool (optional)
+        whether to plot the results or not
+    Returns
+    ---------------
+    dist_sort: list
+        a list of all the distances between the reference cell and the other
+        cells, sorted by distance
+    xcorr_list:list
+        normalized cross correlation between reference cell and the other
+        cells, sorted by distance from reference cell.
+    """
     coms, cell_lbls = get_centers_of_mass(tracked_masks[0])
     com_ref = coms[ref_cell-1]
     dists = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
