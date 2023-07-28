@@ -98,8 +98,8 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
         for i in range(masks.shape[0]):
             labels = np.unique(masks[i])
             labels = np.delete(labels, np.where(labels == 0))
-            comsi = ndimage.center_of_mass(masks[i],masks[i], labels)
-            coms.append(comsi)
+            coms_i = ndimage.center_of_mass(masks[i], masks[i], labels)
+            coms.append(coms_i)
     if len(masks.shape) == 2:
         labels = range(1, roi_count+1)
         coms = ndimage.center_of_mass(masks,masks, labels)
@@ -119,7 +119,7 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
     for imnr in range(1, len(masks)):
         new_cells = 0
         COM_labels = np.unique(masks[imnr].flatten())
-        for COM_label in COM_labels:
+        for COM_idx, COM_label in zip(range(len(COMs[imnr])), COM_labels):
             ref_im_idx = -10
             for k in range(1,backtrack_limit):
                 # Get all distances between centers of mass of one
@@ -127,11 +127,10 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                 if imnr-k<0:
                     break
                 distances = np.linalg.norm(np.array(COMs[imnr-k])
-                                           - np.array(COMs[imnr][COM_label]),
+                                           - np.array(COMs[imnr][COM_idx]),
                                            axis=1)
-                min_distance = np.min(distances)
                 # If the smallest one is smaller than the dist_limit, exit loop
-                if min_distance < dist_limit:
+                if np.min(distances) < dist_limit:
                     ref_im_idx = imnr-k
                     mcc = COMs[ref_im_idx][np.argmin(distances)] # matched
                                                                  # cell
@@ -145,7 +144,7 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                 cell_value = (np.max(tracked_masks[:imnr].flatten())
                              + new_cells)
             # Give area in new mask value corresponding to matched cell
-            roi_coords = np.argwhere(masks[imnr].flatten() == COM_label+1)
+            roi_coords = np.argwhere(masks[imnr].flatten() == COM_label)
             np.put(tracked_masks[imnr], roi_coords, cell_value)
 
     if save:
