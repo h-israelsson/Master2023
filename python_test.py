@@ -196,7 +196,7 @@ def get_centers_of_mass(masks):
     return COMs, labels
 
 
-def get_tracked_masks(masks, dist_limit=10, backtrack_limit=5, random_labels=False,
+def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=False,
                       save=False, name=None, savedir=None):
     """ track the cells
 
@@ -209,11 +209,11 @@ def get_tracked_masks(masks, dist_limit=10, backtrack_limit=5, random_labels=Fal
     dist_limit: int (optional)
         the longest distance, in pixels, that the center of mass is allowed
         to move from one image to the next for it to still count as the same
-        cell
+        cell. Make bigger if cells are moving a lot.
     backtrack_limit: int (optional)
         the maximum number of images back that the algorithm will search
         through to find a center of mass within the distance limit
-        (dist_limit)
+        (dist_limit). Make smaller if cells are moving a lot.
     random_labels: bool
         if True, the cells will be assigned random lables from the start,
         rather than keeping the labels from the first image in masks
@@ -301,10 +301,9 @@ def get_cell_intensities(cell_label, tracked_cells, images):
     mean_intensities = np.zeros(images_count)
 
     for i in range(images_count):
-        intensities = images[i][images[i] == cell_label]
-        if np.any():
-            mean_intensities[i] = np.mean(intensities[tracked_cells[i]
-                                                  == cell_label])
+        intensities = images[i][tracked_cells[i] == cell_label]
+        if np.any(intensities):
+            mean_intensities[i] = np.mean(intensities)
         else:
             mean_intensities[i] = 0
 
@@ -391,7 +390,7 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
     ---------------
     corrcoefs: 2D array
         the correlation coefficients as a matrix
-        """
+    """
     intensities = []
     if not cell_labels:
         cell_labels = range(1, np.max(tracked_cells)+1)
@@ -404,7 +403,7 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
             corrcoefs[i, j] = np.correlate(intensities[i], intensities[j])
 
     if plot:
-        if all_cells:
+        if len(cell_labels) > 100:
             idx = np.round(np.linspace(0, len(list(cell_labels)) - 1, 10,
                                        dtype='int'))
             tick_labels = [str(c) for c in idx]
@@ -461,9 +460,9 @@ def get_common_cells(tracked_masks, percentage=98):
     return commons, counts
     
 
-def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
-                                      images, plot=True):
-    """ get cross correlation as a function of distance from a reference cell
+def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
+                                       plot=True):
+    """ plot cross correlation as a function of distance from a reference cell
 
     The reference cell has to appear in the first image.
     Parameters
@@ -509,6 +508,25 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
     return dists_sort, xcorr_list
 
 
+def experimental_xcorr_plot(ref_cell, tracked_masks, images):
+    cell_labels = get_cell_labels(tracked_masks[0])
+    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
+    xcorr_list = []
+
+    matrix = np.zeros_like(tracked_masks[0])
+
+    for lbl in cell_labels:
+        intensity = get_cell_intensities(lbl, tracked_masks, images)
+        xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
+        lbl_coords = np.argwhere(tracked_masks[0].flatten()==lbl)
+        np.put(matrix, lbl_coords, xcorr)
+
+    plt.matshow(matrix)
+    plt.show()
+
+    return None
+
+
 def main():
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/CellPoseModel-01"
     images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
@@ -516,14 +534,14 @@ def main():
     # name = "ouabain2_generoustracking"
     # masks = get_segmentation(images_path, model_path, diam = 35, save=True, savedir=savedir, name=name)
 
-    masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_masks.tif"
+    masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
     # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_generoustracking_masks.tif"
     masks = open_masks(masks_path)
     # masks2 = open_masks(masks_path2)
 
-    # images = open_image_stack(images_path)
-    tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
-                      backtrack_limit=15, dist_limit=20, random_labels=False)
+    images = open_image_stack(images_path)
+    # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
+                    #   backtrack_limit=15, dist_limit=20, random_labels=False)
 
     # get_cross_correlation_by_distance(17, masks, images, plot=True)
     # cells, counts = get_common_cells(masks)
@@ -531,6 +549,8 @@ def main():
     # print("Cells " + str(cells))
     # print("Cells2 " + str(cells2))
     # plot_cell_intensities(cells, masks, images)
+
+    experimental_xcorr_plot(80, masks, images)
 
     # print(get_common_cells(masks))
 
