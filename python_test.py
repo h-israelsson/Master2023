@@ -65,16 +65,16 @@ def _save_masks(masks: list, name: str=None, savedir: str=None) -> None:
     return None
 
 
-def get_roi_count(masks):
-    """Returns the number of ROI's in each image (mask) as a list."""
-    if len(masks.shape) == 3:
-        roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1
-                                                         # bc regions with
-                                                         # 0 do not count as
-                                                         # roi:s
-    if len(masks.shape) == 2:
-        roi_count = len(np.unique(masks))-1
-    return roi_count
+# def get_roi_count(masks):
+#     """Returns the number of ROI's in each image (mask) as a list."""
+#     if len(masks.shape) == 3:
+#         roi_count = [len(np.unique(m))-1 for m in masks] # Have to take -1
+#                                                          # bc regions with
+#                                                          # 0 do not count as
+#                                                          # roi:s
+#     if len(masks.shape) == 2:
+#         roi_count = len(np.unique(masks))-1
+#     return roi_count
 
 
 # def open_masks(folder: str) -> list:
@@ -88,24 +88,36 @@ def open_masks(file_path):
     return imread(file_path)
 
 
+def get_cell_labels(masks: list):
+    """Get a list of what labels the cells have in each image."""
+
+    if len(masks.shape) == 3:
+        all_labels = []
+        for mask in masks:
+            labels = np.unique(mask[mask!=0])
+            all_labels.append(labels)
+    if len(masks.shape) == 2:
+        all_labels = np.unique(masks[masks!=0])
+
+    return all_labels
+
+
 def get_centers_of_mass(masks: list) -> Tuple[list, list]:
-    """Returns a list with coordinates for centers of mass for each
+    """Returns a list with center of mass coordinates for each
     cell in each image."""
+
+    labels = get_cell_labels(masks)
+
     if len(masks.shape) == 3:
         coms = []
-        roi_labels = []
         for i in range(masks.shape[0]):
-            labels = np.unique(masks[i])
-            labels = np.delete(labels, np.where(labels == 0))
-            coms_i = ndimage.center_of_mass(masks[i], masks[i], labels)
-
-            roi_labels.append(labels)
+            coms_i = ndimage.center_of_mass(masks[i], masks[i], labels[i])
             coms.append(coms_i)
 
     if len(masks.shape) == 2:
-        roi_labels = np.unique(masks)
-        coms = ndimage.center_of_mass(masks,masks, labels)
-    return coms, roi_labels
+        coms = ndimage.center_of_mass(masks, masks, labels)
+
+    return coms, labels
 
 
 def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
@@ -162,7 +174,8 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
 
 def get_cell_intensities(cell_label: int, tracked_cells: list, images: list):
     """Get the mean intensities of a specified cells across all images.
-    If the cell does not appear in an image, the intensity is set to 0."""
+    If the cell does not appear in an image, the intensity is set to 0
+    for that image."""
     images_count = len(images)
     mean_intensities = np.zeros(images_count)
 
@@ -182,6 +195,7 @@ def get_cell_intensities(cell_label: int, tracked_cells: list, images: list):
 def assign_random_cell_labels(mask: list):
     """Assign random labels to the elements in mask. Only provide one single
     mask, not a whole list of masks! Zero labels remain zero."""
+
     labels = np.unique(mask[mask!=0])
     random_labels = labels.copy()
     np.random.shuffle(random_labels)
@@ -192,33 +206,38 @@ def assign_random_cell_labels(mask: list):
     return randomized_mask
 
 
-def plot_cell_intensities(cell_names: list, tracked_cells: list,
+def plot_cell_intensities(cell_labels: list, tracked_cells: list,
                           images: list):
-    """Plot mean intensities for specified cell numbers."""
+    """Plot mean intensities for specified cell labels."""
+
+    period = 10 # The period between each image
     image_count = len(images)
-    x = np.linspace(0,0+(10*image_count), image_count, endpoint=False)
+    x = np.linspace(0,0+(period*image_count), image_count, endpoint=False)
+
     plt.figure()
-    plt.ylabel("Relative intensity")
-    plt.xlabel("Time [s]")
-    for c in cell_names:
+
+    for c in cell_labels:
         y = get_cell_intensities(c, tracked_cells, images)
         plt.plot(x, y, label="Cell " + str(c))
+
+    plt.ylabel("Relative intensity")
+    plt.xlabel("Time [s]")
     plt.legend()
     plt.show()
     
     return None
 
 
-def get_correlation_matrix(tracked_cells, images, cell_names=None, all_cells=False,
+def get_correlation_matrix(tracked_cells, images, cell_labels=None, all_cells=False,
                 plot=True):
-    """Calculate correlation of the intensity between all cells
+    """Calculate and plot correlation of the intensity between all cells
     in the images."""
     intensities = []
     if all_cells:
-        cell_names = range(1, np.max(tracked_cells)+1)
-    corrcoefs = np.zeros((len(cell_names), len(cell_names)))
+        cell_labels = range(1, np.max(tracked_cells)+1)
+    corrcoefs = np.zeros((len(cell_labels), len(cell_labels)))
     
-    for cell_label, j in zip(cell_names, range(len(cell_names))):
+    for cell_label, j in zip(cell_labels, range(len(cell_labels))):
         intensities.append(get_cell_intensities(cell_label, tracked_cells,
                                                 images))
         for i in range(j+1):
@@ -226,12 +245,12 @@ def get_correlation_matrix(tracked_cells, images, cell_names=None, all_cells=Fal
 
     if plot:
         if all_cells:
-            idx = np.round(np.linspace(0, len(list(cell_names)) - 1, 10,
+            idx = np.round(np.linspace(0, len(list(cell_labels)) - 1, 10,
                                        dtype='int'))
             tick_labels = [str(c) for c in idx]
         else:
-            idx = cell_names
-            tick_labels = [str(c) for c in cell_names]
+            idx = cell_labels
+            tick_labels = [str(c) for c in cell_labels]
         print(tick_labels)
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -248,19 +267,16 @@ def get_correlation_matrix(tracked_cells, images, cell_names=None, all_cells=Fal
 
 
 def get_common_cells(tracked_masks, percentage=98):
-    """Returns the cell numbers that are common for 'percentage'
+    """Returns the cell labels that are common for 'percentage'
     percent of the images."""
-    cell_names = []
+    cell_labels = get_cell_labels(tracked_masks)
     commons = []
     counts = []
     limit = (percentage/100)*len(tracked_masks)
-    for i in range(len(tracked_masks)):
-        cell_names.append(np.unique(tracked_masks[i]))
-    cell_names_flat = np.array([i for image in cell_names for i in image])
-    for i in np.unique(cell_names_flat):
-        if i == 0:
-            continue
-        count = np.count_nonzero(cell_names_flat == i)
+    cell_labels_flat = np.array([i for image in cell_labels for i in image])
+
+    for i in np.unique(cell_labels_flat):
+        count = np.count_nonzero(cell_labels_flat == i)
         if count >= limit:
             commons.append(i)
             counts.append(count)
@@ -281,11 +297,11 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
                                       images, plot=True):
     """Get cross correlation as a function of distance from a specified cell.
     Only uses cells that are common for all images."""
-    cell_names = get_common_cells(tracked_masks)
-    coms, roi_count = get_centers_of_mass(tracked_masks[0])
+    cell_labels = get_common_cells(tracked_masks)
+    coms, roi_labels = get_centers_of_mass(tracked_masks[0])
     com_ref = coms[ref_cell-1]
     distances = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
-    dist_dict = dict(zip(cell_names, distances[cell_names-1]))
+    dist_dict = dict(zip(cell_labels, distances[cell_labels-1]))
     sorted_dist_dict = dict(sorted(dist_dict.items(),
                                    key=lambda item: item[1]))
 
