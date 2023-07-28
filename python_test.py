@@ -92,18 +92,21 @@ def open_masks(file_path):
 def get_centers_of_mass(masks: list) -> Tuple[list, list]:
     """Returns a list with coordinates for centers of mass for each
     cell in each image."""
-    coms = []
-    roi_count = get_roi_count(masks)
     if len(masks.shape) == 3:
+        coms = []
+        roi_labels = []
         for i in range(masks.shape[0]):
             labels = np.unique(masks[i])
             labels = np.delete(labels, np.where(labels == 0))
             coms_i = ndimage.center_of_mass(masks[i], masks[i], labels)
+
+            roi_labels.append(labels)
             coms.append(coms_i)
+
     if len(masks.shape) == 2:
-        labels = range(1, roi_count+1)
+        roi_labels = np.unique(masks)
         coms = ndimage.center_of_mass(masks,masks, labels)
-    return coms, roi_count
+    return coms, roi_labels
 
 
 def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
@@ -113,13 +116,13 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
     the same number in every mask."""
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
-    COMs, roi_count = get_centers_of_mass(masks)
+    COMs, roi_labels = get_centers_of_mass(masks)
 
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         new_cells = 0
-        COM_labels = np.unique(masks[imnr].flatten())
-        for COM_idx, COM_label in zip(range(len(COMs[imnr])), COM_labels):
+        ROI_labels_imnr = roi_labels[imnr]
+        for COM_idx, COM_label in zip(range(len(COMs[imnr])), ROI_labels_imnr):
             ref_im_idx = -10
             for k in range(1,backtrack_limit):
                 # Get all distances between centers of mass of one
@@ -135,17 +138,17 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                     mcc = COMs[ref_im_idx][np.argmin(distances)] # matched
                                                                  # cell
                                                                  # coordinate
-                    cell_value = tracked_masks[ref_im_idx][
+                    cell_label = tracked_masks[ref_im_idx][
                         round(mcc[0])][round(mcc[1])]
                     break
             # If no matching cell is found in previous images:
             if ref_im_idx == -10:
                 new_cells += 1
-                cell_value = (np.max(tracked_masks[:imnr].flatten())
+                cell_label = (np.max(tracked_masks[:imnr].flatten())
                              + new_cells)
             # Give area in new mask value corresponding to matched cell
             roi_coords = np.argwhere(masks[imnr].flatten() == COM_label)
-            np.put(tracked_masks[imnr], roi_coords, cell_value)
+            np.put(tracked_masks[imnr], roi_coords, cell_label)
 
     if save:
         # savedir = "NewMasks_"+str(date.today())
