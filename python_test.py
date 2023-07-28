@@ -107,17 +107,19 @@ def get_centers_of_mass(masks: list) -> Tuple[list, list]:
 
 
 def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
-                      save: bool = False, savedir: str=None) -> list:
+                      save: bool = False, savedir: str=None,
+                      backtrack_limit: int=5) -> list:
     """Tracks cells and returns a list of masks where each cell is given
     the same number in every mask."""
     tracked_masks = np.zeros_like(masks)
     tracked_masks[0] = masks[0]
     COMs, roi_count = get_centers_of_mass(masks)
-    backtrack_limit = 5
+
     # Loop through all masks and centers of masses.
     for imnr in range(1, len(masks)):
         new_cells = 0
-        for comnr in range(roi_count[imnr]):
+        COM_labels = np.unique(masks[imnr].flatten())
+        for COM_label in COM_labels:
             ref_im_idx = -10
             for k in range(1,backtrack_limit):
                 # Get all distances between centers of mass of one
@@ -125,7 +127,7 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                 if imnr-k<0:
                     break
                 distances = np.linalg.norm(np.array(COMs[imnr-k])
-                                           - np.array(COMs[imnr][comnr]),
+                                           - np.array(COMs[imnr][COM_label]),
                                            axis=1)
                 min_distance = np.min(distances)
                 # If the smallest one is smaller than the dist_limit, exit loop
@@ -135,8 +137,7 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                                                                  # cell
                                                                  # coordinate
                     cell_value = tracked_masks[ref_im_idx][
-                        round(mcc[0])][
-                            round(mcc[1])]
+                        round(mcc[0])][round(mcc[1])]
                     break
             # If no matching cell is found in previous images:
             if ref_im_idx == -10:
@@ -144,7 +145,7 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
                 cell_value = (np.max(tracked_masks[:imnr].flatten())
                              + new_cells)
             # Give area in new mask value corresponding to matched cell
-            roi_coords = np.argwhere(masks[imnr].flatten() == comnr+1)
+            roi_coords = np.argwhere(masks[imnr].flatten() == COM_label+1)
             np.put(tracked_masks[imnr], roi_coords, cell_value)
 
     if save:
@@ -291,22 +292,23 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
 def main():
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/CellPoseModel-01"
     images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
-    # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25"
+    savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25"
     # name = "ouabain2_generoustracking"
     # masks = get_segmentation(images_path, model_path, diam = 35, save=True, savedir=savedir, name=name)
 
     masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_masks.tif"
-    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_generoustracking_masks.tif"
+    # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_generoustracking_masks.tif"
     masks = open_masks(masks_path)
-    masks2 = open_masks(masks_path2)
+    # masks2 = open_masks(masks_path2)
 
     # images = open_image_stack(images_path)
+    get_tracked_masks(masks, name='ouabain2_test', save=True, savedir=savedir)
 
     # get_cross_correlation_by_distance(17, masks, images, plot=True)
-    cells, counts = get_common_cells(masks)
-    cells2, counts2 = get_common_cells(masks2)
-    print("Cells " + str(cells))
-    print("Cells2 " + str(cells2))
+    # cells, counts = get_common_cells(masks)
+    # cells2, counts2 = get_common_cells(masks2)
+    # print("Cells " + str(cells))
+    # print("Cells2 " + str(cells2))
     # plot_cell_intensities(cells, masks, images)
 
     # print(get_common_cells(masks))
