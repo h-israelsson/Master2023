@@ -160,16 +160,20 @@ def get_tracked_masks(masks: list, dist_limit: int = 10, name: str=None,
     return tracked_masks
 
 
-def get_cell_intensities(cell_number: int, tracked_cells: list, images: list):
-    """Get the mean intensities of a specified cells across all images."""
+def get_cell_intensities(cell_label: int, tracked_cells: list, images: list):
+    """Get the mean intensities of a specified cells across all images.
+    If the cell does not appear in an image, the intensity is set to 0."""
     images_count = len(images)
     mean_intensities = np.zeros(images_count)
+
     for i in range(images_count):
-        intensities = images[i]
-        mean_intensities[i] = np.mean(intensities[tracked_cells[i]
-                                                  == cell_number])
-    print(np.mean(mean_intensities)-np.min(mean_intensities))
-    input("Press enter to continue.")
+        intensities = images[i][images[i] == cell_label]
+        if np.any():
+            mean_intensities[i] = np.mean(intensities[tracked_cells[i]
+                                                  == cell_label])
+        else:
+            mean_intensities[i] = 0
+
     relative_intensities = (mean_intensities - np.min(mean_intensities))/\
         (np.mean(mean_intensities)-np.min(mean_intensities))
     return relative_intensities
@@ -214,8 +218,8 @@ def get_correlation_matrix(tracked_cells, images, cell_names=None, all_cells=Fal
         cell_names = range(1, np.max(tracked_cells)+1)
     corrcoefs = np.zeros((len(cell_names), len(cell_names)))
     
-    for cell_number, j in zip(cell_names, range(len(cell_names))):
-        intensities.append(get_cell_intensities(cell_number, tracked_cells,
+    for cell_label, j in zip(cell_names, range(len(cell_names))):
+        intensities.append(get_cell_intensities(cell_label, tracked_cells,
                                                 images))
         for i in range(j+1):
             corrcoefs[i, j] = np.correlate(intensities[i], intensities[j])
@@ -243,7 +247,7 @@ def get_correlation_matrix(tracked_cells, images, cell_names=None, all_cells=Fal
     return corrcoefs
 
 
-def get_common_cells(tracked_masks, percentage=100):
+def get_common_cells(tracked_masks, percentage=98):
     """Returns the cell numbers that are common for 'percentage'
     percent of the images."""
     cell_names = []
@@ -320,8 +324,8 @@ def main():
     # masks2 = open_masks(masks_path2)
 
     # images = open_image_stack(images_path)
-    get_tracked_masks(masks, name='ouabain2_btl15_distl20_rnd', save=True, savedir=savedir,
-                      backtrack_limit=15, dist_limit=20, random_labels=True)
+    tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
+                      backtrack_limit=15, dist_limit=20, random_labels=False)
 
     # get_cross_correlation_by_distance(17, masks, images, plot=True)
     # cells, counts = get_common_cells(masks)
