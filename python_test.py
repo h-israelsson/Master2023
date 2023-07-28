@@ -251,7 +251,7 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None, all_cells=Fa
         else:
             idx = cell_labels
             tick_labels = [str(c) for c in cell_labels]
-        print(tick_labels)
+        
         fig = plt.figure()
         ax = fig.add_subplot(111)
         cax = ax.matshow(corrcoefs)
@@ -269,6 +269,7 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None, all_cells=Fa
 def get_common_cells(tracked_masks, percentage=98):
     """Returns the cell labels that are common for 'percentage'
     percent of the images."""
+
     cell_labels = get_cell_labels(tracked_masks)
     commons = []
     counts = []
@@ -280,6 +281,7 @@ def get_common_cells(tracked_masks, percentage=98):
         if count >= limit:
             commons.append(i)
             counts.append(count)
+
     return commons, counts
 
     # numbers_lists = []
@@ -296,35 +298,30 @@ def get_common_cells(tracked_masks, percentage=98):
 def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
                                       images, plot=True):
     """Get cross correlation as a function of distance from a specified cell.
-    Only uses cells that are common for all images."""
-    cell_labels = get_common_cells(tracked_masks)
-    coms, roi_labels = get_centers_of_mass(tracked_masks[0])
+    The specified cell has to be in the first image"""
+
+    coms, cell_lbls = get_centers_of_mass(tracked_masks[0])
     com_ref = coms[ref_cell-1]
-    distances = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
-    dist_dict = dict(zip(cell_labels, distances[cell_labels-1]))
-    sorted_dist_dict = dict(sorted(dist_dict.items(),
-                                   key=lambda item: item[1]))
+    dists = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
 
-    dist_list = []
-    cross_correlation_list = []
-    intensity_ref = get_cell_intensities(ref_cell, tracked_masks, images)
+    dists_sort, cell_lbls_sort = (list(t) for t in 
+                                  zip(*sorted(zip(dists, cell_lbls))))
+    xcorr_list = []
+    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
 
-    for c in sorted_dist_dict:
-        dist_list.append(sorted_dist_dict[c])
-        intensity_c = get_cell_intensities(c, tracked_masks, images)
-        cross_correlation_list.append(np.corrcoef(intensity_ref,
-                                                  intensity_c)[0,1]) # Have to
-                        # think through whether to use corrcoef or correlate
+    for cell in cell_lbls_sort:
+        intensity = get_cell_intensities(cell, tracked_masks, images)
+        xcorr_list.append(np.corrcoef(ref_cell_intensity, intensity)[0,1])
 
     if plot:
         plt.figure()
-        plt.plot(dist_list, cross_correlation_list)
+        plt.plot(dists_sort, xcorr_list)
         plt.xlabel("Distance from reference cell (pixels)")
         plt.ylabel("Cross correlation")
         plt.title("Cross correlation as a function of distance from reference cell.")
         plt.show()
 
-    return dist_list, cross_correlation_list
+    return dists_sort, xcorr_list
 
 
 def main():
