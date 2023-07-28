@@ -169,7 +169,7 @@ def get_cell_intensities(cell_number: int, tracked_cells: list, images: list):
     return relative_intensities
 
 
-def plot_cell_intensities(cell_numbers: list, tracked_cells: list,
+def plot_cell_intensities(cell_names: list, tracked_cells: list,
                           images: list):
     """Plot mean intensities for specified cell numbers."""
     image_count = len(images)
@@ -177,7 +177,7 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list,
     plt.figure()
     plt.ylabel("Relative intensity")
     plt.xlabel("Time [s]")
-    for c in cell_numbers:
+    for c in cell_names:
         y = get_cell_intensities(c, tracked_cells, images)
         plt.plot(x, y, label="Cell " + str(c))
     plt.legend()
@@ -186,16 +186,16 @@ def plot_cell_intensities(cell_numbers: list, tracked_cells: list,
     return None
 
 
-def get_correlation_matrix(tracked_cells, images, cell_numbers=None, all_cells=False,
+def get_correlation_matrix(tracked_cells, images, cell_names=None, all_cells=False,
                 plot=True):
     """Calculate correlation of the intensity between all cells
     in the images."""
     intensities = []
     if all_cells:
-        cell_numbers = range(1, np.max(tracked_cells)+1)
-    corrcoefs = np.zeros((len(cell_numbers), len(cell_numbers)))
+        cell_names = range(1, np.max(tracked_cells)+1)
+    corrcoefs = np.zeros((len(cell_names), len(cell_names)))
     
-    for cell_number, j in zip(cell_numbers, range(len(cell_numbers))):
+    for cell_number, j in zip(cell_names, range(len(cell_names))):
         intensities.append(get_cell_intensities(cell_number, tracked_cells,
                                                 images))
         for i in range(j+1):
@@ -203,12 +203,12 @@ def get_correlation_matrix(tracked_cells, images, cell_numbers=None, all_cells=F
 
     if plot:
         if all_cells:
-            idx = np.round(np.linspace(0, len(list(cell_numbers)) - 1, 10,
+            idx = np.round(np.linspace(0, len(list(cell_names)) - 1, 10,
                                        dtype='int'))
             tick_labels = [str(c) for c in idx]
         else:
-            idx = cell_numbers
-            tick_labels = [str(c) for c in cell_numbers]
+            idx = cell_names
+            tick_labels = [str(c) for c in cell_names]
         print(tick_labels)
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -224,26 +224,24 @@ def get_correlation_matrix(tracked_cells, images, cell_numbers=None, all_cells=F
     return corrcoefs
 
 
-def get_common_cells(tracked_masks,
-                     percentage=100 # The percentage of images the cell must
-                                    # be in to be counted.
-                     ):
-    """Returns the cell numbers that are common for all images,
-    i.e. cells that never disappear."""
-    cell_numbers = np.empty(len(tracked_masks))
+def get_common_cells(tracked_masks, percentage=100):
+    """Returns the cell numbers that are common for 'percentage'
+    percent of the images."""
+    cell_names = []
     commons = []
     counts = []
     limit = (percentage/100)*len(tracked_masks)
     for i in range(len(tracked_masks)):
-        cell_numbers[i] = np.unique(tracked_masks[i])
-    for i in np.unique(cell_numbers.flatten()):
-        count = np.count_nonzero(cell_numbers = i)
+        cell_names.append(np.unique(tracked_masks[i]))
+    cell_names_flat = np.array([i for image in cell_names for i in image])
+    for i in np.unique(cell_names_flat):
         if i == 0:
             continue
+        count = np.count_nonzero(cell_names_flat == i)
         if count >= limit:
             commons.append(i)
             counts.append(count)
-    return commons
+    return commons, counts
 
     # numbers_lists = []
     # for image in tracked_masks:
@@ -260,11 +258,11 @@ def get_cross_correlation_by_distance(ref_cell: int, tracked_masks,
                                       images, plot=True):
     """Get cross correlation as a function of distance from a specified cell.
     Only uses cells that are common for all images."""
-    cell_numbers = get_common_cells(tracked_masks)
+    cell_names = get_common_cells(tracked_masks)
     coms, roi_count = get_centers_of_mass(tracked_masks[0])
     com_ref = coms[ref_cell-1]
     distances = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
-    dist_dict = dict(zip(cell_numbers, distances[cell_numbers-1]))
+    dist_dict = dict(zip(cell_names, distances[cell_names-1]))
     sorted_dist_dict = dict(sorted(dist_dict.items(),
                                    key=lambda item: item[1]))
 
@@ -305,8 +303,8 @@ def main():
     # images = open_image_stack(images_path)
 
     # get_cross_correlation_by_distance(17, masks, images, plot=True)
-    cells = get_common_cells(masks)
-    cells2 = get_common_cells(masks2)
+    cells, counts = get_common_cells(masks)
+    cells2, counts2 = get_common_cells(masks2)
     print("Cells " + str(cells))
     print("Cells2 " + str(cells2))
     # plot_cell_intensities(cells, masks, images)
