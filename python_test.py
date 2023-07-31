@@ -15,39 +15,29 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     
     Takes an image stack and segments each image separately with
     the given model.
-
     Parameters
     ---------------
-
     image_path: str
         the path to the image to be segmented
-
     model_path: str
         the path to the model to use for segmenting
-
     diam: int (optional)
         approximate diameter of the cells in pixels. View the image in
         Cellpose API to get an idea of this value.
-
     save: bool (optional)
         if True, the masks will be saved as a single .tif file
-
     savedir: str (optional)
         the path to the directory in which to save the generated masks.
-
     track: bool (optional)
         if True, the cells are tracked using the standard variables in
         get_tracked_cells. For tuning of the tracking, use get_tracked_cells
         directly.
-
     name: str (optional)
         name of the .tif file to which the masks will be saved. "_masks.tif"
         is always added to the end of the name. If None, the name will be
         "[image name]_masks.tif". See _save_masks() for further details.
-
     Returns
     ---------------
-
     masks: 3D array
         the generated masks.
     """
@@ -78,10 +68,9 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
 
 
 def open_image_stack(image_path):
-    """ open a .tif file of images
+    """ open a .tif image stack
     
     Modifies the data to work with the segmentation function.
-
     Parameters
     ---------------
     image_path: str
@@ -508,20 +497,22 @@ def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
     return dists_sort, xcorr_list
 
 
-def experimental_xcorr_plot(ref_cell, tracked_masks, images):
+def plot_xcorr_map(ref_cell, tracked_masks, images):
     cell_labels = get_cell_labels(tracked_masks[0])
     ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
-    xcorr_list = []
 
-    matrix = np.zeros_like(tracked_masks[0])
+    matrix = np.zeros_like(tracked_masks[0], dtype=float)
 
     for lbl in cell_labels:
         intensity = get_cell_intensities(lbl, tracked_masks, images)
         xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
-        lbl_coords = np.argwhere(tracked_masks[0].flatten()==lbl)
-        np.put(matrix, lbl_coords, xcorr)
+        matrix[tracked_masks[0]==lbl] = xcorr
 
-    plt.matshow(matrix)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    cax = ax.matshow(matrix)
+    plt.title("Correlation to cell no. " + str(ref_cell))
+    fig.colorbar(cax, label="Correlation coefficient")
     plt.show()
 
     return None
@@ -550,7 +541,10 @@ def main():
     # print("Cells2 " + str(cells2))
     # plot_cell_intensities(cells, masks, images)
 
-    experimental_xcorr_plot(80, masks, images)
+    # commons, count = get_common_cells()
+    # print(get_common_cells(masks))
+
+    plot_xcorr_map(108, masks, images)
 
     # print(get_common_cells(masks))
 
