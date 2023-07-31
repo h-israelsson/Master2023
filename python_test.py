@@ -152,9 +152,9 @@ def get_cell_labels(masks):
         for mask in masks:
             labels = np.unique(mask[mask!=0])
             all_labels.append(labels)
+        # all_labels = np.array(all_labels)
     if len(masks.shape) == 2:
         all_labels = np.unique(masks[masks!=0])
-
     return all_labels
 
 
@@ -178,10 +178,10 @@ def get_centers_of_mass(masks):
     if len(masks.shape) == 3:
         COMs = []
         for i in range(masks.shape[0]):
-            COMs_i = ndimage.center_of_mass(masks[i], masks[i], labels[i])
+            COMs_i = np.array(ndimage.center_of_mass(masks[i], masks[i], labels[i]))
             COMs.append(COMs_i)
     if len(masks.shape) == 2:
-        COMs = ndimage.center_of_mass(masks, masks, labels)
+        COMs = np.array(ndimage.center_of_mass(masks, masks, labels))
     return COMs, labels
 
 
@@ -294,7 +294,7 @@ def get_cell_intensities(cell_label, tracked_cells, images):
         if np.any(intensities):
             mean_intensities[i] = np.mean(intensities)
         else:
-            mean_intensities[i] = 0
+            mean_intensities[i] = np.nan
 
     relative_intensities = (mean_intensities - np.min(mean_intensities))/\
         (np.mean(mean_intensities)-np.min(mean_intensities))
@@ -445,12 +445,13 @@ def get_common_cells(tracked_masks, percentage=98):
         if count >= limit:
             commons.append(i)
             counts.append(count)
-
+    commons = np.array(commons)
+    counts = np.array(counts)
     return commons, counts
     
 
 def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
-                                       plot=True):
+                                       perc_req = 100, plot=True):
     """ plot cross correlation as a function of distance from a reference cell
 
     The reference cell has to appear in the first image.
@@ -462,6 +463,9 @@ def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
         previously tracked segmentation masks
     images: 3D array
         images from which the tracked_cells segmentation mask was generated
+    perc_req: int
+        requirement on how many percent of the images the cells have to be in
+        in order to be included in the calculations of cross correlation
     plot: bool (optional)
         whether to plot the results or not
     Returns
@@ -474,11 +478,14 @@ def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
         cells, sorted by distance from reference cell.
     """
     coms, cell_lbls = get_centers_of_mass(tracked_masks[0])
-    com_ref = coms[ref_cell-1]
+    comparison_cells, count = get_common_cells(tracked_masks, perc_req)
+    coms = coms[np.isin(cell_lbls, comparison_cells)]
+    com_ref = coms[comparison_cells == ref_cell]
+
     dists = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
 
     dists_sort, cell_lbls_sort = (list(t) for t in 
-                                  zip(*sorted(zip(dists, cell_lbls))))
+                                  zip(*sorted(zip(dists, comparison_cells))))
     xcorr_list = []
     ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
 
@@ -488,7 +495,7 @@ def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
 
     if plot:
         plt.figure()
-        plt.plot(dists_sort, xcorr_list)
+        plt.plot(dists_sort, xcorr_list, '.--')
         plt.xlabel("Distance from reference cell (pixels)")
         plt.ylabel("Cross correlation")
         plt.title("Cross correlation as a function of distance from reference cell.")
@@ -498,6 +505,23 @@ def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
 
 
 def plot_xcorr_map(ref_cell, tracked_masks, images):
+    """ plot a map of the cross correlation between ref_cell and the other cells
+    in tracked_masks[0]
+    
+    Parameters
+    ---------------
+    ref_cell: int
+        index of the cell to compare with
+    tracked_masks: 3D array
+        previously tracked segmentation masks
+    images: 3D array
+        images from which tracked_masks was generated
+    Returns
+    ---------------
+    matrix: 2D array
+        the matrix corresponding to an image where every cell is given the
+        value ofr the cross correlation between it and the reference cell
+    """
     cell_labels = get_cell_labels(tracked_masks[0])
     ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
 
@@ -515,7 +539,7 @@ def plot_xcorr_map(ref_cell, tracked_masks, images):
     fig.colorbar(cax, label="Correlation coefficient")
     plt.show()
 
-    return None
+    return matrix
 
 
 def main():
@@ -542,9 +566,10 @@ def main():
     # plot_cell_intensities(cells, masks, images)
 
     # commons, count = get_common_cells()
-    # print(get_common_cells(masks))
+    # print(get_common_cells(masks, 100))
 
-    plot_xcorr_map(108, masks, images)
+    # plot_xcorr_map(113, masks, images)
+    plot_cross_correlation_by_distance(100, masks, images)
 
     # print(get_common_cells(masks))
 
