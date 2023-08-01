@@ -543,18 +543,25 @@ def plot_xcorr_map(ref_cell, tracked_masks, images):
 
 
 def main():
-    # model_path = "C:/Users/workstation3/Documents/Hannas_models/CellPoseModel-01"
-    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
+    # model_path = "C:/Users/workstation3/Documents/Hannas_models/07-25-oua2"
+    # images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
     # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25"
-    # name = "ouabain2_generoustracking"
-    # masks = get_segmentation(images_path, model_path, diam = 35, save=True, savedir=savedir, name=name)
+    # name = "ouabain2-dl20-bt15_SpecificModel"
+    # masks = get_segmentation(images_path, model_path, diam=44, save=False, savedir=savedir, name=name)
+    # tracked_masks = get_tracked_masks(masks, save=True, name=name, savedir=savedir)
 
     masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
-    # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_generoustracking_masks.tif"
+    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2-dl20-bt15_SpecificModel_masks.tif"
     masks = open_masks(masks_path)
-    # masks2 = open_masks(masks_path2)
+    masks2 = open_masks(masks_path2)
 
-    images = open_image_stack(images_path)
+    commons, count = get_common_cells(masks, 100)
+    commons2, count = get_common_cells(masks2, 100)
+
+    print(f"Commons: {commons}\n Count: {len(commons)}")
+    print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
+
+    # images = open_image_stack(images_path)
     # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
                     #   backtrack_limit=15, dist_limit=20, random_labels=False)
 
@@ -569,7 +576,7 @@ def main():
     # print(get_common_cells(masks, 100))
 
     # plot_xcorr_map(113, masks, images)
-    plot_cross_correlation_by_distance(100, masks, images, 90)
+    # plot_cross_correlation_by_distance(100, masks, images, 90)
 
     # print(get_common_cells(masks))
 
