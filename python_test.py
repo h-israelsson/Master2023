@@ -258,7 +258,7 @@ def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=Fa
     return tracked_masks
 
 
-def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=False):
+def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=False, lpf=False):
     """ get the realtive mean intensities for specified cell in every image
     
     Calculates the relative mean intensity for specified cell in each image.
@@ -278,6 +278,8 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
         different cells match better
     hpf: bool (optional)
         whether to do high-pass filtering or not
+    lpf: bool (optional)
+        whether to do low-pass filtering or not
     Returns
     ---------------
     mean_intensities: 1D array
@@ -285,7 +287,8 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
     """
     images_count = len(images)
     mean_intensities = np.zeros(images_count)
-    cutoff_freq = 0.0025    # for high-pass filtering
+    hpf_cutoff_freq = 0.0025
+    lpf_cutoff_freq = 0.005
     T = 10                  # period of sampling
 
     for i in range(images_count):
@@ -294,15 +297,21 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
             mean_intensities[i] = np.mean(intensities)
         else:
             mean_intensities[i] = np.nan
+    if hpf:
+        freqs = np.fft.fftfreq(len(mean_intensities), T)
+        filter_mask = np.abs(freqs) > hpf_cutoff_freq
+        intensities_fft = np.fft.fft(mean_intensities)
+        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+        mean_intensities = filtered_signal
+    if lpf:
+        freqs = np.fft.fftfreq(len(mean_intensities), T)
+        filter_mask = np.abs(freqs) < lpf_cutoff_freq
+        intensities_fft = np.fft.fft(mean_intensities)
+        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+        mean_intensities = filtered_signal
     if normalize:
         mean_intensities = (mean_intensities - np.min(mean_intensities))/\
             (np.mean(mean_intensities)-np.min(mean_intensities))
-    if hpf:
-        freq = np.fft.fftfreq(len(mean_intensities), T)
-        filter_mask = np.abs(freq) > cutoff_freq
-        intensities_fft = np.fft.fft(mean_intensities)
-        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        return filtered_signal
     return mean_intensities
 
 
@@ -331,7 +340,7 @@ def assign_random_cell_labels(mask):
     return randomized_mask
 
 
-def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hpf=False):
+def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hpf=False, lpf=False):
     """ plot relative mean intensities for specified cells
     
     Parameters
@@ -353,7 +362,7 @@ def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hp
     plt.figure()
 
     for c in cell_labels:
-        y = get_cell_intensities(c, tracked_cells, images, normalize, hpf)
+        y = get_cell_intensities(c, tracked_cells, images, normalize, hpf, lpf)
         plt.plot(x, y, label="Cell " + str(c))
 
     plt.ylabel("Relative intensity")
@@ -548,14 +557,14 @@ def plot_xcorr_map(ref_cell, tracked_masks, images):
 
 def main():
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/07-25-oua2"
-    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
+    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-11/CBX-ouabain-10.tif"
     # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25"
     # name = "ouabain2-dl20-bt15_SpecificModel"
     # masks = get_segmentation(images_path, model_path, diam=44, save=False, savedir=savedir, name=name)
     # tracked_masks = get_tracked_masks(masks, save=True, name=name, savedir=savedir)
 
     # masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
-    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2-dl20-bt15_SpecificModel_masks.tif"
+    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-11/cbx-ouabain-10-dl20-bt15_SpecificModel_masks.tif"
     # masks = open_masks(masks_path)
     masks2 = open_masks(masks_path2)
     images = open_image_stack(images_path)
@@ -566,7 +575,7 @@ def main():
     # print(f"Commons: {commons}\n Count: {len(commons)}")
     print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
 
-    plot_cell_intensities(commons2, masks2, images, normalize=True, hpf=True)
+    plot_cell_intensities(commons2, masks2, images, normalize=False, hpf=True, lpf=False)
 
     
     # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
