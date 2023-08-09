@@ -299,10 +299,10 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
             mean_intensities[i] = np.nan
     if hpf:
         freqs = np.fft.fftfreq(len(mean_intensities), T)
-        filter_mask = np.abs(freqs) > hpf_cutoff_freq
+        filter_mask = np.abs(freqs) <= hpf_cutoff_freq
         intensities_fft = np.fft.fft(mean_intensities)
         filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        mean_intensities = filtered_signal
+        mean_intensities = mean_intensities - filtered_signal
     if lpf:
         freqs = np.fft.fftfreq(len(mean_intensities), T)
         filter_mask = np.abs(freqs) < lpf_cutoff_freq
