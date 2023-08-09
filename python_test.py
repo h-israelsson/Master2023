@@ -4,6 +4,7 @@ import numpy as np
 from os import makedirs
 from datetime import date
 from scipy import ndimage
+from scipy.fft import fft, ifft
 from typing import Tuple
 from tifffile import imwrite
 from os.path import basename, splitext, exists
@@ -257,7 +258,7 @@ def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=Fa
     return tracked_masks
 
 
-def get_cell_intensities(cell_label, tracked_cells, images):
+def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=False):
     """ get the realtive mean intensities for specified cell in every image
     
     Calculates the relative mean intensity for specified cell in each image.
@@ -272,13 +273,20 @@ def get_cell_intensities(cell_label, tracked_cells, images):
     images: 3D array
         The images from which the tracked cells mask was generated and the
         intensity should be retrieved from
+    normalize: bool (optional)
+        if true, the intensities are normalized so that the intensities of
+        different cells match better
+    hpf: bool (optional)
+        whether to do high-pass filtering or not
     Returns
     ---------------
-    relative_intensities: 1D array
-        mean relative intensity of the cell for each image
+    mean_intensities: 1D array
+        mean (normalized) intensity of the cell for each image
     """
     images_count = len(images)
     mean_intensities = np.zeros(images_count)
+    cutoff_freq = 0.0025    # for high-pass filtering
+    T = 10                  # period of sampling
 
     for i in range(images_count):
         intensities = images[i][tracked_cells[i] == cell_label]
@@ -286,10 +294,16 @@ def get_cell_intensities(cell_label, tracked_cells, images):
             mean_intensities[i] = np.mean(intensities)
         else:
             mean_intensities[i] = np.nan
-
-    relative_intensities = (mean_intensities - np.min(mean_intensities))/\
-        (np.mean(mean_intensities)-np.min(mean_intensities))
-    return relative_intensities
+    if normalize:
+        mean_intensities = (mean_intensities - np.min(mean_intensities))/\
+            (np.mean(mean_intensities)-np.min(mean_intensities))
+    if hpf:
+        freq = np.fft.fftfreq(len(mean_intensities), T)
+        filter_mask = np.abs(freq) > cutoff_freq
+        intensities_fft = np.fft.fft(mean_intensities)
+        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+        return filtered_signal
+    return mean_intensities
 
 
 def assign_random_cell_labels(mask):
@@ -317,7 +331,7 @@ def assign_random_cell_labels(mask):
     return randomized_mask
 
 
-def plot_cell_intensities(cell_labels, tracked_cells, images):
+def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hpf=False):
     """ plot relative mean intensities for specified cells
     
     Parameters
@@ -332,21 +346,20 @@ def plot_cell_intensities(cell_labels, tracked_cells, images):
     ---------------
     None
     """
-    period = 10 # The period between each image
+    T = 10 # The period between each image
     image_count = len(images)
-    x = np.linspace(0,0+(period*image_count), image_count, endpoint=False)
+    x = np.linspace(0,0+(T*image_count), image_count, endpoint=False)
 
     plt.figure()
 
     for c in cell_labels:
-        y = get_cell_intensities(c, tracked_cells, images)
+        y = get_cell_intensities(c, tracked_cells, images, normalize, hpf)
         plt.plot(x, y, label="Cell " + str(c))
 
     plt.ylabel("Relative intensity")
     plt.xlabel("Time [s]")
     plt.legend()
-    plt.show()
-    
+    plt.show() 
     return None
 
 
@@ -553,7 +566,7 @@ def main():
     # print(f"Commons: {commons}\n Count: {len(commons)}")
     print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
 
-    plot_cell_intensities(commons2, masks2, images)
+    plot_cell_intensities(commons2, masks2, images, normalize=True, hpf=True)
 
     
     # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
