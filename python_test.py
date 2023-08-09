@@ -58,15 +58,6 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     return masks
 
 
-# def open_images(image_folder_path):
-#     """Opens separate images."""
-#     files = get_image_files(image_folder_path, 'unused_mask_filter_variable')
-#     imgs = [imread(f) for f in files]
-#     # names = [basename(f) for f in files]
-#     names = "Hello!"
-#     return imgs, names
-
-
 def open_image_stack(image_path):
     """ open a .tif image stack
     
@@ -297,7 +288,7 @@ def get_cell_intensities(cell_label, tracked_cells, images):
             mean_intensities[i] = np.nan
 
     relative_intensities = (mean_intensities - np.min(mean_intensities))/\
-        (np.mean(mean_intensities)-np.min(mean_intensities))
+        (np.max(mean_intensities)-np.min(mean_intensities))
     return relative_intensities
 
 
@@ -450,7 +441,7 @@ def get_common_cells(tracked_masks, percentage=98):
     return commons, counts
     
 
-def plot_cross_correlation_by_distance(ref_cell, tracked_masks, images,
+def plot_xcorr_vs_distance(ref_cell, tracked_masks, images,
                                        perc_req = 100, plot=True):
     """ plot cross correlation as a function of distance from a reference cell
 
