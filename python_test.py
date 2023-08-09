@@ -9,6 +9,7 @@ from typing import Tuple
 from tifffile import imwrite
 from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
+from scipy.signal import butter, filtfilt
 
 def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
                      track=True, name=None):
@@ -298,11 +299,13 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
         else:
             mean_intensities[i] = np.nan
     if hpf:
-        freqs = np.fft.fftfreq(len(mean_intensities), T)
-        filter_mask = np.abs(freqs) > hpf_cutoff_freq
-        intensities_fft = np.fft.fft(mean_intensities)
-        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        mean_intensities = filtered_signal
+        # freqs = np.fft.fftfreq(len(mean_intensities), T)
+        # filter_mask = np.abs(freqs) > hpf_cutoff_freq
+        # intensities_fft = np.fft.fft(mean_intensities)
+        # filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+        # mean_intensities = filtered_signal
+        a, b = butter(3, 0.025, 'highpass')
+        mean_intensities = filtfilt(a, b, mean_intensities)
     if lpf:
         freqs = np.fft.fftfreq(len(mean_intensities), T)
         filter_mask = np.abs(freqs) < lpf_cutoff_freq
