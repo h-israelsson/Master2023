@@ -585,11 +585,11 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
 
     # Add annotation to all the cells in the image
     coms, lbls = get_centers_of_mass(tracked_masks[0])
-    coms_commons = []
-    for i in cell_labels:
-        coms_commons.append(list(coms[np.where(lbls==i)][0]))
-    y = [com[0] for com in coms_commons]
-    x = [com[1] for com in coms_commons]
+    coms_commons = np.zeros((len(cell_labels),2))
+    for i, lbl in enumerate(cell_labels):
+        coms_commons[i] = coms[np.where(lbls==lbl)][0]
+    y = coms_commons[:, 0]
+    x = coms_commons[:, 1]
     plt.scatter(x,y, marker='.', color="red")
     for i, lbl in enumerate(cell_labels):
         ax.annotate(lbl, (x[i], y[i]))
