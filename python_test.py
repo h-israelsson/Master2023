@@ -1,11 +1,9 @@
 from cellpose import models
-from cellpose.io import imread, get_image_files
+from cellpose.io import imread
 import numpy as np
 from os import makedirs
 from datetime import date
 from scipy import ndimage
-from scipy.fft import fft, ifft
-from typing import Tuple
 from tifffile import imwrite
 from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
@@ -275,7 +273,7 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
         The images from which the tracked cells mask was generated and the
         intensity should be retrieved from
     normalize: bool (optional)
-        if true, the intensities are normalized so that the intensities of
+        if True, the intensities are normalized so that the intensities of
         different cells match better
     hpf: bool (optional)
         whether to do high-pass filtering or not
@@ -354,6 +352,13 @@ def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hp
         tracked segmentation mask
     images: 3D array
         the images from which the intensities should be taken
+    normalize: bool (optional)
+        if True, the intensities are normalized so that the intensities of
+        different cells match better
+    hpf: bool (optional)
+        whether to do high-pass filtering or not
+    lpf: bool (optional)
+        whether to do low-pass filtering or not
     Returns
     ---------------
     None
@@ -430,7 +435,7 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
     return corrcoefs
 
 
-def get_common_cells(tracked_masks, percentage=98):
+def get_common_cells(tracked_masks, percentage=100):
     """ get the cells that appear in at least [percentage] number of images
     
     Parameters
@@ -466,8 +471,8 @@ def get_common_cells(tracked_masks, percentage=98):
     return commons, counts
     
 
-def plot_xcorr_vs_distance(ref_cell, tracked_masks, images,
-                                       perc_req = 100, plot=True):
+def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
+                           normalize=False, hpf=False, lpf=False, plot=True):
     """ plot cross correlation as a function of distance from a reference cell
 
     The reference cell has to appear in the first image.
@@ -482,6 +487,13 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images,
     perc_req: int
         requirement on how many percent of the images the cells have to be in
         in order to be included in the calculations of cross correlation
+    normalize: bool (optional)
+        if True, the intensities are normalized so that the intensities of
+        different cells match better
+    hpf: bool (optional)
+        whether to do high-pass filtering or not
+    lpf: bool (optional)
+        whether to do low-pass filtering or not
     plot: bool (optional)
         whether to plot the results or not
     Returns
@@ -503,7 +515,8 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images,
     dists_sort, cell_lbls_sort = (list(t) for t in 
                                   zip(*sorted(zip(dists, comparison_cells))))
     xcorr_list = []
-    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
+    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images,
+                                              normalize, hpf, lpf)
 
     for cell in cell_lbls_sort:
         intensity = get_cell_intensities(cell, tracked_masks, images)
@@ -511,18 +524,19 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images,
 
     if plot:
         plt.figure()
-        plt.plot(dists_sort, xcorr_list, '.--')
+        plt.plot(dists_sort, xcorr_list, '.')
         plt.xlabel("Distance from reference cell (pixels)")
         plt.ylabel("Cross correlation")
-        plt.title("Cross correlation as a function of distance from reference cell.")
+        plt.title("Cross correlation as a function of distance from cell " + str(ref_cell))
         plt.show()
 
     return dists_sort, xcorr_list
 
 
-def plot_xcorr_map(ref_cell, tracked_masks, images):
-    """ plot a map of the cross correlation between ref_cell and the other cells
-    in tracked_masks[0]
+def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
+                   hpf=False, lpf=False, show_labels=True):
+    """ plot a map of the cross correlation between ref_cell and the other
+    cells in tracked_masks[0]
     
     Parameters
     ---------------
@@ -532,14 +546,24 @@ def plot_xcorr_map(ref_cell, tracked_masks, images):
         previously tracked segmentation masks
     images: 3D array
         images from which tracked_masks was generated
+    normalize: bool (optional)
+        if True, the intensities are normalized so that the intensities of
+        different cells match better
+    hpf: bool (optional)
+        whether to do high-pass filtering or not
+    lpf: bool (optional)
+        whether to do low-pass filtering or not
+    show_labels: bool (optional)
+        whether to show the labels of the cells or not
     Returns
     ---------------
     matrix: 2D array
         the matrix corresponding to an image where every cell is given the
         value ofr the cross correlation between it and the reference cell
     """
-    cell_labels = get_cell_labels(tracked_masks[0])
-    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images)
+    cell_labels, xxx = get_common_cells(tracked_masks)
+    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images,
+                                              normalize, hpf, lpf)
 
     matrix = np.zeros_like(tracked_masks[0], dtype=float)
 
@@ -548,11 +572,26 @@ def plot_xcorr_map(ref_cell, tracked_masks, images):
         xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
         matrix[tracked_masks[0]==lbl] = xcorr
 
+
+
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    cax = ax.matshow(matrix)
+    cax = ax.imshow(matrix)
     plt.title("Correlation to cell no. " + str(ref_cell))
     fig.colorbar(cax, label="Correlation coefficient")
+    
+
+    # Add annotation to all the cells in the image
+    coms, lbls = get_centers_of_mass(tracked_masks[0])
+    coms_commons = []
+    for i in cell_labels:
+        coms_commons.append(list(coms[np.where(lbls==i)][0]))
+    y = [com[0] for com in coms_commons]
+    x = [com[1] for com in coms_commons]
+    plt.scatter(x,y, marker='.', color="red")
+    for i, lbl in enumerate(cell_labels):
+        ax.annotate(lbl, (x[i], y[i]))
+
     plt.show()
 
     return matrix
@@ -560,14 +599,14 @@ def plot_xcorr_map(ref_cell, tracked_masks, images):
 
 def main():
     # model_path = "C:/Users/workstation3/Documents/Hannas_models/07-25-oua2"
-    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-11/CBX-ouabain-10.tif"
+    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2.tif"
     # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25"
     # name = "ouabain2-dl20-bt15_SpecificModel"
     # masks = get_segmentation(images_path, model_path, diam=44, save=False, savedir=savedir, name=name)
     # tracked_masks = get_tracked_masks(masks, save=True, name=name, savedir=savedir)
 
-    # masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
-    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-11/cbx-ouabain-10-dl20-bt15_SpecificModel_masks.tif"
+    # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
+    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2-dl20-bt15_SpecificModel_masks.tif"
     # masks = open_masks(masks_path)
     masks2 = open_masks(masks_path2)
     images = open_image_stack(images_path)
@@ -578,7 +617,9 @@ def main():
     # print(f"Commons: {commons}\n Count: {len(commons)}")
     print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
 
-    plot_cell_intensities(commons2, masks2, images, normalize=False, hpf=True, lpf=False)
+    # plot_cell_intensities(commons2, masks2, images, normalize=False, hpf=True, lpf=False)
+    # plot_xcorr_vs_distance(commons2[10], masks2, images, perc_req=100, normalize=False, hpf=False, lpf=False)
+    plot_xcorr_map(commons2[10], masks2, images, normalize=False, hpf=False, lpf=False)
 
     
     # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
