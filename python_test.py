@@ -7,6 +7,7 @@ from scipy import ndimage
 from tifffile import imwrite
 from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from scipy.signal import butter, filtfilt
 
 def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
@@ -572,14 +573,15 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
         xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
         matrix[tracked_masks[0]==lbl] = xcorr
 
-
-
+    # Plotting
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    cax = ax.imshow(matrix)
+    masked_matrix = np.ma.masked_where(matrix == 0, matrix)
+    cmap = cm.hot   # This doesn't seem to do anything
+    cmap.set_bad(color='white')
+    cax = ax.imshow(masked_matrix)
     plt.title("Correlation to cell no. " + str(ref_cell))
     fig.colorbar(cax, label="Correlation coefficient")
-    
 
     # Add annotation to all the cells in the image
     coms, lbls = get_centers_of_mass(tracked_masks[0])
@@ -593,7 +595,6 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
         ax.annotate(lbl, (x[i], y[i]))
 
     plt.show()
-
     return matrix
 
 
