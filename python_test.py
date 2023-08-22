@@ -1,3 +1,4 @@
+import enum
 from cellpose import models
 from cellpose.io import imread
 import numpy as np
@@ -40,7 +41,9 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     Returns
     ---------------
     masks: 3D array
-        the generated masks.
+        the generated masks, where the area of each cell has a unique integer
+        value (the cell label) greater than or eaqual to one and the
+        background has the value 0.
     """
 
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
@@ -542,7 +545,8 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
     Parameters
     ---------------
     ref_cell: int
-        index of the cell to compare with
+        index of the cell to compare with. If ref_cell=0, the output will
+        be a sum of the correlation with all cells.
     tracked_masks: 3D array
         previously tracked segmentation masks
     images: 3D array
@@ -559,19 +563,29 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
     Returns
     ---------------
     matrix: 2D array
-        the matrix corresponding to an image where every cell is given the
-        value ofr the cross correlation between it and the reference cell
+        the first mask from tracked_masks, but the values of the cells
+        have been exchanged for the corresponding correlation coefficient
+        of that cell.
     """
     cell_labels, xxx = get_common_cells(tracked_masks)
-    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images,
-                                              normalize, hpf, lpf)
-
     matrix = np.zeros_like(tracked_masks[0], dtype=float)
 
-    for lbl in cell_labels:
-        intensity = get_cell_intensities(lbl, tracked_masks, images)
-        xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
-        matrix[tracked_masks[0]==lbl] = xcorr
+    if ref_cell==0:
+        intensities = []
+        for lbl in cell_labels:
+            intensities.append(get_cell_intensities(ref_cell, tracked_masks,
+                                                images, normalize, hpf, lpf))
+        xcorr = np.corrcoef(intensities, intensities)
+        for i, lbl in enumerate(cell_labels):
+            matrix[tracked_masks[0]==lbl] = np.sum(xcorr[i])
+
+    else:
+        ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks,
+                                                  images, normalize, hpf, lpf)
+        for lbl in cell_labels:
+            intensity = get_cell_intensities(lbl, tracked_masks, images)
+            xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
+            matrix[tracked_masks[0]==lbl] = xcorr
 
     # Plotting
     fig = plt.figure()
