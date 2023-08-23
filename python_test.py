@@ -1,4 +1,3 @@
-import enum
 from cellpose import models
 from cellpose.io import imread
 import numpy as np
@@ -9,7 +8,7 @@ from tifffile import imwrite
 from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt, convolve2d
 
 def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
                      track=True, name=None):
@@ -590,6 +589,26 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
             intensity = get_cell_intensities(lbl, tracked_masks, images)
             xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
             matrix[tracked_masks[0]==lbl] = xcorr
+
+    if nearest_neighbor:
+        ones = np.ones([3,3])
+        intensities = []
+        for lbl in cell_labels:
+            intensities.append(get_cell_intensities(lbl, tracked_masks,
+                                                    images, normalize, hpf,
+                                                    lpf))
+        for lbl in cell_labels:
+            mask = convolve2d(tracked_masks[0]==lbl, ones, mode="same")
+            border_values = tracked_masks[0][mask!=0]
+            border_values = border_values[border_values!=lbl]
+            total_border_length = len(border_values)
+            for i in np.unique(border_values):      # Just calculate the whole matrix and pick out values instead
+                weight = float(np.count_nonzero(border_values==i))/\
+                    float(total_border_length)
+                weighted_corr = weight*\
+                    np.corrcoef(intensities[lbl],
+                                intensities[cell_labels==i])[0,1]
+                matrix[tracked_masks[0]==lbl] += weighted_corr
 
     # Plotting
     fig = plt.figure()
