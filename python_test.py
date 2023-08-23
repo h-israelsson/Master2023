@@ -622,17 +622,17 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
 
 
 def main():
-    model_path = "C:/Users/workstation3/Documents/Hannas_models/the-master-model"
+    # model_path = "C:/Users/workstation3/Documents/Hannas_models/the-master-model"
     images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/15_08_ctl.tif"
-    savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15"
-    name = "ctl_master_model"
-    masks2 = get_segmentation(images_path, model_path, diam=32, save=True, savedir=savedir, name=name, track=True)
+    # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15"
+    # name = "hep_oua_master_model"
+    # masks2 = get_segmentation(images_path, model_path, diam=32, save=True, savedir=savedir, name=name, track=True)
     # tracked_masks = get_tracked_masks(masks, save=True, name=name, savedir=savedir)
 
     # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
-    # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/ctl_spec_model_masks.tif"
+    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/ctl_master_model_masks.tif"
     # masks = open_masks(masks_path)
-    # masks2 = open_masks(masks_path2)
+    masks2 = open_masks(masks_path2)
     images = open_image_stack(images_path)
 
     # commons, count = get_common_cells(masks, 100)
