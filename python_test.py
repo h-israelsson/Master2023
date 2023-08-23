@@ -438,15 +438,15 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
     return corrcoefs
 
 
-def get_common_cells(tracked_masks, percentage=100):
-    """ get the cells that appear in at least [percentage] number of images
+def get_common_cells(tracked_masks, occurence=100):
+    """ get the cells that appear in at least [occurence] percent of images
     
     Parameters
     ---------------
     tracked_masks: 3D array
         previously tracked segmentation masks
-    percentage: int (optional)
-        the smallest percentage of images that the cell is allowed to appear
+    occurence: int (optional)
+        the smallest percent of images that the cell is allowed to appear
         in to still be taken into account
     Returns
     ---------------
@@ -461,7 +461,7 @@ def get_common_cells(tracked_masks, percentage=100):
     cell_labels = get_cell_labels(tracked_masks)
     commons = []
     counts = []
-    limit = (percentage/100)*len(tracked_masks)
+    limit = (occurence/100)*len(tracked_masks)
     cell_labels_flat = np.array([i for image in cell_labels for i in image])
 
     for i in np.unique(cell_labels_flat):
@@ -536,43 +536,61 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
     return dists_sort, xcorr_list
 
 
-def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
-                   hpf=False, lpf=False, show_labels=False, perc=97):
-    """ plot a map of the cross correlation between ref_cell and the other
-    cells in tracked_masks[0]
+def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=97, normalize=False,
+                   hpf=False, lpf=False, show_labels=False):
+    """ plot a map of the cross correlation per cell
     
     Parameters
     ---------------
-    ref_cell: int
-        index of the cell to compare with. If ref_cell==0, the output will
-        be a sum of the correlation with all cells.
     tracked_masks: 3D array
         previously tracked segmentation masks
+
     images: 3D array
         images from which tracked_masks was generated
+
+    mode: {'single', 'total_sum', 'nearest_neighbor'} (optional)
+        'single':
+            By default, mode is 'single'. This returns a map with the
+            cross correlations between a reference cell (ref_cell) and every
+            other cell. With this mode, ref_cell must be given.
+        'total_sum':
+            Mode 'total_sum' returns a map with the summed cross correlation
+            with all cells for each cell.
+        'nearest_neighbor':
+            Mode 'nearest_neighbor' returns a map where each cell gets a value
+            corresponding to the weighted sum of the cross correlations with
+            the cells sharing a border with it.
+
+    ref_cell: int (optional)
+        index of the reference cell when using mode 'single'.
+
+    occurence: int (optional)
+        the percentage of images a cell has to appear in in order to be used
+        in the cross correlation.
+
     normalize: bool (optional)
         if True, the intensities are normalized so that the intensities of
         different cells match better
+
     hpf: bool (optional)
         whether to do high-pass filtering or not
+
     lpf: bool (optional)
         whether to do low-pass filtering or not
+
     show_labels: bool (optional)
         whether to show the labels of the cells or not
-    perc: int (optional)
-        the percentage of images a cell has to appear in in order to be used
-        in the cross correlation.
+
     Returns
     ---------------
     matrix: 2D array
         the first mask from tracked_masks, but the values of the cells
-        have been exchanged for the corresponding correlation coefficient
-        of that cell.
+        have been exchanged for the corresponding correlation coefficients.
     """
-    cell_labels, xxx = get_common_cells(tracked_masks, perc)
+    cell_labels, xxx = get_common_cells(tracked_masks, occurence)
     matrix = np.zeros_like(tracked_masks[0], dtype=float)
 
-    if ref_cell==0:
+    if mode=="total_sum":
         intensities = []
         for lbl in cell_labels:
             intensities.append(get_cell_intensities(lbl, tracked_masks,
@@ -582,7 +600,7 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
         for i, lbl in enumerate(cell_labels):
             matrix[tracked_masks[0]==lbl] = np.sum(xcorr[i])
 
-    else:
+    if mode=="single":
         ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks,
                                                   images, normalize, hpf, lpf)
         for lbl in cell_labels:
@@ -590,7 +608,7 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
             xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
             matrix[tracked_masks[0]==lbl] = xcorr
 
-    if nearest_neighbor:
+    if mode=="nearest_neighbor":
         ones = np.ones([3,3])
         intensities = []
         for lbl in cell_labels:
@@ -598,14 +616,19 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
                                                     images, normalize, hpf,
                                                     lpf))
         xcorr_matrix = np.corrcoef(intensities)
+        print(np.shape(xcorr_matrix))
         for lbl in cell_labels:
             mask = convolve2d(tracked_masks[0]==lbl, ones, mode="same")
             border_values = tracked_masks[0][mask!=0]
             border_values = border_values[border_values!=lbl]
-            for i in np.unique(border_values):      # Just calculate the whole matrix and pick out values instead
+            border_values = border_values[border_values!=0]
+            # We only want to take the elements in cell_labels into account
+            border_values = border_values[np.in1d(border_values, cell_labels)]
+            for i in np.unique(border_values):
                 weight = float(np.count_nonzero(border_values==i))/\
                     float(len(border_values))
-                weighted_corr = weight*xcorr_matrix[cell_labels==lbl,cell_labels==i]
+                weighted_corr = weight*float(xcorr_matrix[cell_labels==lbl,
+                                                          cell_labels==i])
                 matrix[tracked_masks[0]==lbl] += weighted_corr
 
     # Plotting
@@ -615,11 +638,14 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
     cmap = cm.hot   # This doesn't seem to do anything
     cmap.set_bad(color='white')
     cax = ax.imshow(masked_matrix)
-    if ref_cell==0:
+    if mode=='total_sum':
         plt.title("Summed correlation with all cells")
         fig.colorbar(cax, label="Sum of correlation coefficients")
-    else:
+    if mode=='single':
         plt.title("Correlation to cell no. " + str(ref_cell))
+        fig.colorbar(cax, label="Correlation coefficient")
+    if mode=='nearest_neighbor':
+        plt.title("Correlation to nearest neighboring cells")
         fig.colorbar(cax, label="Correlation coefficient")
 
     # # Add annotation to all the cells in the image
@@ -653,14 +679,14 @@ def main():
     images = open_image_stack(images_path)
 
     # commons, count = get_common_cells(masks, 100)
-    commons2, count = get_common_cells(masks2, 100)
+    # commons2, count = get_common_cells(masks2, 100)
 
     # print(f"Commons: {commons}\n Count: {len(commons)}")
-    print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
+    # print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
 
     # plot_cell_intensities(commons2, masks2, images, normalize=False, hpf=True, lpf=False)
     # plot_xcorr_vs_distance(commons2[10], masks2, images, perc_req=100, normalize=False, hpf=False, lpf=False)
-    plot_xcorr_map(0, masks2, images, normalize=False, hpf=False, lpf=False)
+    plot_xcorr_map(masks2, images, mode='nearest_neighbor', occurence=95, normalize=False, hpf=False, lpf=False)
 
     
     # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
