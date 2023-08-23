@@ -597,17 +597,15 @@ def plot_xcorr_map(ref_cell, tracked_masks, images, normalize=False,
             intensities.append(get_cell_intensities(lbl, tracked_masks,
                                                     images, normalize, hpf,
                                                     lpf))
+        xcorr_matrix = np.corrcoef(intensities)
         for lbl in cell_labels:
             mask = convolve2d(tracked_masks[0]==lbl, ones, mode="same")
             border_values = tracked_masks[0][mask!=0]
             border_values = border_values[border_values!=lbl]
-            total_border_length = len(border_values)
             for i in np.unique(border_values):      # Just calculate the whole matrix and pick out values instead
                 weight = float(np.count_nonzero(border_values==i))/\
-                    float(total_border_length)
-                weighted_corr = weight*\
-                    np.corrcoef(intensities[lbl],
-                                intensities[cell_labels==i])[0,1]
+                    float(len(border_values))
+                weighted_corr = weight*xcorr_matrix[cell_labels==lbl,cell_labels==i]
                 matrix[tracked_masks[0]==lbl] += weighted_corr
 
     # Plotting
