@@ -126,6 +126,45 @@ def open_masks(file_path):
     return masks
 
 
+def extract_images_for_training(images_path, interval=50, savedir=None,
+                                name=None):
+    """Extracts images with a certain interval from image stack.
+    
+    Parameters
+    ---------------
+    images_path: str
+        the path to the image stack to extract the images from
+    interval: int (optional)
+        interval between the images to be extracted
+    savedir: str (optional)
+        directory in which to save the extracted images. Default to save
+        the images in current directory.
+    name: str (optional)
+        name of the files. To the name, the image number will be added.
+        Default to save files with the name of the image stack file,
+        followed by the image number, e.g. ctl0035. 
+    Returns
+    ---------------
+        None
+    """
+
+    stack = open_image_stack(images_path)
+    im_idxs = np.arange(0,len(stack),interval)
+    if name == None:
+        name=splitext(basename(images_path))[0]
+    for i in im_idxs:
+        if savedir == None:
+            imwrite(name + str("{0:03}".format(i)) + ".tif", stack[i])
+        else:
+            if exists(savedir) == False:
+                makedirs(savedir)
+            imwrite(savedir + "\\" + name + str("{0:03}".format(i)) + ".tif",
+                    stack[i])
+        
+    return None
+
+
+
 def get_cell_labels(masks):
     """ obtain a list of cell labels
 
@@ -597,8 +636,10 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
                                                     images, normalize, hpf,
                                                     lpf))
         xcorr = np.corrcoef(intensities)
+
         for i, lbl in enumerate(cell_labels):
-            matrix[tracked_masks[0]==lbl] = np.sum(xcorr[i])
+            matrix[tracked_masks[10]==lbl] = float(np.sum(xcorr[i]))
+        matrix /= len(cell_labels)
 
     if mode=="single":
         ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks,
@@ -606,7 +647,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
         for lbl in cell_labels:
             intensity = get_cell_intensities(lbl, tracked_masks, images)
             xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
-            matrix[tracked_masks[0]==lbl] = xcorr
+            matrix[tracked_masks[10]==lbl] = xcorr
 
     if mode=="nearest_neighbor":
         ones = np.ones([3,3])
@@ -618,8 +659,8 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
         xcorr_matrix = np.corrcoef(intensities)
         print(np.shape(xcorr_matrix))
         for lbl in cell_labels:
-            mask = convolve2d(tracked_masks[0]==lbl, ones, mode="same")
-            border_values = tracked_masks[0][mask!=0]
+            mask = convolve2d(tracked_masks[10]==lbl, ones, mode="same")
+            border_values = tracked_masks[10][mask!=0]
             border_values = border_values[border_values!=lbl]
             border_values = border_values[border_values!=0]
             # We only want to take the elements in cell_labels into account
@@ -629,7 +670,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
                     float(len(border_values))
                 weighted_corr = weight*float(xcorr_matrix[cell_labels==lbl,
                                                           cell_labels==i])
-                matrix[tracked_masks[0]==lbl] += weighted_corr
+                matrix[tracked_masks[10]==lbl] += weighted_corr
 
     # Plotting
     fig = plt.figure()
@@ -650,7 +691,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
 
     # # Add annotation to all the cells in the image
     if show_labels:
-        coms, lbls = get_centers_of_mass(tracked_masks[0])
+        coms, lbls = get_centers_of_mass(tracked_masks[10])
         coms_commons = np.zeros((len(cell_labels),2))
         for i, lbl in enumerate(cell_labels):
             coms_commons[i] = coms[np.where(lbls==lbl)][0]
@@ -686,7 +727,7 @@ def main():
 
     # plot_cell_intensities(commons2, masks2, images, normalize=False, hpf=True, lpf=False)
     # plot_xcorr_vs_distance(commons2[10], masks2, images, perc_req=100, normalize=False, hpf=False, lpf=False)
-    plot_xcorr_map(masks2, images, mode='nearest_neighbor', occurence=95, normalize=False, hpf=False, lpf=False)
+    plot_xcorr_map(masks2, images, mode='total_sum', occurence=97, normalize=False, hpf=False, lpf=False)
 
     
     # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
