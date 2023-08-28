@@ -639,22 +639,31 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
 
     if mode=="total_sum":
         intensities = []
+        correlations_list = []
         for lbl in cell_labels:
             intensities.append(get_cell_intensities(lbl, tracked_masks,
                                                     images, normalize, hpf,
                                                     lpf))
         xcorr = np.corrcoef(intensities)
         for i, lbl in enumerate(cell_labels):
-            matrix[ref_image==lbl] = float(np.sum(xcorr[i]))
+            sum_corr = float(np.sum(xcorr[i]))
+            matrix[ref_image==lbl] = sum_corr
+            correlations_list.append(sum_corr)
         matrix /= len(cell_labels)
+        correlation_mean = np.mean(np.array(correlations_list))
+        correlation_variance = np.var(np.array(correlations_list))
 
     if mode=="single":
         ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks,
                                                   images, normalize, hpf, lpf)
+        correlations_list = []
         for lbl in cell_labels:
             intensity = get_cell_intensities(lbl, tracked_masks, images)
             xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
             matrix[ref_image==lbl] = xcorr
+            correlations_list.append(xcorr)
+        correlation_mean = np.mean(np.array(correlations_list))
+        correlation_variance = np.var(np.array(correlations_list))
 
     if mode=="nearest_neighbor":        # CONTROL SOMEHOW IF THIS ALL ACTUALLY WORKS!
         ones = np.ones([3,3])
@@ -686,20 +695,6 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
                 correlations_list.append(correlations)
         correlation_mean = np.mean(np.array(correlations_list))
         correlation_variance = np.var(np.array(correlations_list))
-        
-
-
-    # Get the average correlation of all cells, not including cells at border
-    ones = np.ones([3,3])
-    non_edge_labels = []
-    for lbl in cell_labels:
-        mask = convolve2d(ref_image==lbl, ones, mode="same")
-        border_values = ref_image[mask!=0]
-        border_values = border_values[border_values!=lbl]
-        if len(border_values==0) < 0.3 len(border_values):
-            non_edge_labels.append(lbl)
-    
-
 
     # Plotting
     fig = plt.figure()
