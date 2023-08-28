@@ -636,29 +636,17 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
     matrix = np.zeros_like(tracked_masks[0], dtype=float)
     correlation_mean = 0
     correlation_variance = 0
-
-    if mode=="total_sum":
-        intensities = []
-        correlations_list = []
-        for lbl in cell_labels:
-            intensities.append(get_cell_intensities(lbl, tracked_masks,
-                                                    images, normalize, hpf,
-                                                    lpf))
-        xcorr = np.corrcoef(intensities)
-        for i, lbl in enumerate(cell_labels):
-            sum_corr = float(np.sum(xcorr[i]))
-            matrix[ref_image==lbl] = sum_corr
-            correlations_list.append(sum_corr)
-        matrix /= len(cell_labels)
-        correlation_mean = np.mean(np.array(correlations_list))
-        correlation_variance = np.var(np.array(correlations_list))
+    intensities = []
+    correlations_list = []
+    for lbl in cell_labels:
+        intensities.append(get_cell_intensities(lbl, tracked_masks, images,
+                                                normalize, hpf, lpf))
 
     if mode=="single":
         ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks,
                                                   images, normalize, hpf, lpf)
-        correlations_list = []
         for lbl in cell_labels:
-            intensity = get_cell_intensities(lbl, tracked_masks, images)
+            intensity = intensities[cell_labels==lbl]
             xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
             matrix[ref_image==lbl] = xcorr
             correlations_list.append(xcorr)
@@ -666,17 +654,10 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
         correlation_variance = np.var(np.array(correlations_list))
 
     if mode=="nearest_neighbor":        # CONTROL SOMEHOW IF THIS ALL ACTUALLY WORKS!
-        ones = np.ones([3,3])
-        intensities = []
-        correlations_list = []
-        for lbl in cell_labels:
-            intensities.append(get_cell_intensities(lbl, tracked_masks,
-                                                    images, normalize, hpf,
-                                                    lpf))
         xcorr_matrix = np.corrcoef(intensities)
-        print(np.shape(xcorr_matrix))
+        conv_krnl = np.ones([3,3])
         for lbl in cell_labels:
-            mask = convolve2d(ref_image==lbl, ones, mode="same")
+            mask = convolve2d(ref_image==lbl, conv_krnl, mode="same")
             all_border_values = ref_image[mask!=0]
             all_border_values = all_border_values[all_border_values!=lbl]
             # We only want to take the elements in cell_labels into account
@@ -693,6 +674,16 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
             matrix[ref_image==lbl] = correlations
             if (len(all_border_values)-bv_count)/len(all_border_values) < 0.3:
                 correlations_list.append(correlations)
+        correlation_mean = np.mean(np.array(correlations_list))
+        correlation_variance = np.var(np.array(correlations_list))
+
+    if mode=="total_sum":
+        xcorr = np.corrcoef(intensities)
+        for i, lbl in enumerate(cell_labels):
+            sum_corr = float(np.sum(xcorr[i]))
+            matrix[ref_image==lbl] = sum_corr
+            correlations_list.append(sum_corr)
+        matrix /= len(cell_labels)
         correlation_mean = np.mean(np.array(correlations_list))
         correlation_variance = np.var(np.array(correlations_list))
 
