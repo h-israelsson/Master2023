@@ -18,8 +18,10 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     the given model.
     Parameters
     ---------------
-    image_path: str
-        the path to the image to be segmented
+    image_path: str or 3D array
+        the path to the image to be segmented or the 3D array of the image.
+        The 3D array should follow the structure given from open_image_stack
+        in order to be segmented correctly.
     model_path: str
         the path to the model to use for segmenting
     diam: int (optional)
@@ -46,7 +48,10 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     """
 
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
-    imgs = open_image_stack(image_path)
+    if type(image_path) == str:
+        imgs = open_image_stack(image_path)
+    else:
+        imgs = image_path
     masks, flows, styles = model.eval(imgs, diameter=diam, channels=[0,0],
                                       flow_threshold=0.4, do_3D=False)
     masks = np.array(masks)
@@ -79,7 +84,7 @@ def open_image_stack(image_path):
     return stack
 
 
-def _save_masks(masks, name=None, savedir=None) -> None:
+def _save_masks(masks, name=None, savedir=None):
     """ save masks as single .tif file
 
     Parameters
@@ -162,7 +167,6 @@ def extract_images_for_training(images_path, interval=50, savedir=None,
                     stack[i])
         
     return None
-
 
 
 def get_cell_labels(masks):
@@ -359,7 +363,7 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
 
 
 def assign_random_cell_labels(mask):
-    """ assign random cell labels to mask
+    """ assign random cell labels to mask. I didn't find much use in this.
 
     Please, only provide one single mask, not a whole 3D array.
     Zero labels remain zero.
@@ -477,14 +481,14 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
     return corrcoefs
 
 
-def get_common_cells(tracked_masks, occurence=100):
-    """ get the cells that appear in at least [occurence] percent of images
+def get_common_cells(tracked_masks, occurrence=100):
+    """ get the cells that appear in at least [occurrence] percent of images
     
     Parameters
     ---------------
     tracked_masks: 3D array
         previously tracked segmentation masks
-    occurence: int (optional)
+    occurrence: int (optional)
         the smallest percent of images that the cell is allowed to appear
         in to still be taken into account
     Returns
@@ -500,7 +504,7 @@ def get_common_cells(tracked_masks, occurence=100):
     cell_labels = get_cell_labels(tracked_masks)
     commons = []
     counts = []
-    limit = (occurence/100)*len(tracked_masks)
+    limit = (occurrence/100)*len(tracked_masks)
     cell_labels_flat = np.array([i for image in cell_labels for i in image])
 
     for i in np.unique(cell_labels_flat):
@@ -575,8 +579,8 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
     return dists_sort, xcorr_list
 
 
-def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=97, normalize=False,
-                   hpf=False, lpf=False, show_labels=False):
+def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=97, normalize=False,
+                   hpf=False, lpf=False, show_labels=False, diam=30):
     """ plot a map of the cross correlation per cell
     
     Parameters
@@ -603,7 +607,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
     ref_cell: int (optional)
         index of the reference cell when using mode 'single'.
 
-    occurence: int (optional)
+    occurrence: int (optional)
         the percentage of images a cell has to appear in in order to be used
         in the cross correlation.
 
@@ -626,8 +630,12 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
         the first mask from tracked_masks, but the values of the cells
         have been exchanged for the corresponding correlation coefficients.
     """
-    cell_labels, xxx = get_common_cells(tracked_masks, occurence)
+
+    ref_image = tracked_masks[10]
+    cell_labels, xxx = get_common_cells(tracked_masks, occurrence)
     matrix = np.zeros_like(tracked_masks[0], dtype=float)
+    correlation_mean = 0
+    correlation_variance = 0
 
     if mode=="total_sum":
         intensities = []
@@ -636,9 +644,8 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
                                                     images, normalize, hpf,
                                                     lpf))
         xcorr = np.corrcoef(intensities)
-
         for i, lbl in enumerate(cell_labels):
-            matrix[tracked_masks[10]==lbl] = float(np.sum(xcorr[i]))
+            matrix[ref_image==lbl] = float(np.sum(xcorr[i]))
         matrix /= len(cell_labels)
 
     if mode=="single":
@@ -647,11 +654,12 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
         for lbl in cell_labels:
             intensity = get_cell_intensities(lbl, tracked_masks, images)
             xcorr = np.corrcoef(ref_cell_intensity, intensity)[0,1]
-            matrix[tracked_masks[10]==lbl] = xcorr
+            matrix[ref_image==lbl] = xcorr
 
-    if mode=="nearest_neighbor":
+    if mode=="nearest_neighbor":        # CONTROL SOMEHOW IF THIS ALL ACTUALLY WORKS!
         ones = np.ones([3,3])
         intensities = []
+        correlations_list = []
         for lbl in cell_labels:
             intensities.append(get_cell_intensities(lbl, tracked_masks,
                                                     images, normalize, hpf,
@@ -659,18 +667,39 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
         xcorr_matrix = np.corrcoef(intensities)
         print(np.shape(xcorr_matrix))
         for lbl in cell_labels:
-            mask = convolve2d(tracked_masks[10]==lbl, ones, mode="same")
-            border_values = tracked_masks[10][mask!=0]
-            border_values = border_values[border_values!=lbl]
-            border_values = border_values[border_values!=0]
+            mask = convolve2d(ref_image==lbl, ones, mode="same")
+            all_border_values = ref_image[mask!=0]
+            all_border_values = all_border_values[all_border_values!=lbl]
             # We only want to take the elements in cell_labels into account
-            border_values = border_values[np.in1d(border_values, cell_labels)]
+            border_values = all_border_values[np.in1d(all_border_values,
+                                                      cell_labels)]
+            bv_count = len(border_values)
+            correlations = 0
             for i in np.unique(border_values):
                 weight = float(np.count_nonzero(border_values==i))/\
-                    float(len(border_values))
+                    float(bv_count)
                 weighted_corr = weight*float(xcorr_matrix[cell_labels==lbl,
                                                           cell_labels==i])
-                matrix[tracked_masks[10]==lbl] += weighted_corr
+                correlations += weighted_corr
+            matrix[ref_image==lbl] = correlations
+            if (len(all_border_values)-bv_count)/len(all_border_values) < 0.3:
+                correlations_list.append(correlations)
+        correlation_mean = np.mean(np.array(correlations_list))
+        correlation_variance = np.var(np.array(correlations_list))
+        
+
+
+    # Get the average correlation of all cells, not including cells at border
+    ones = np.ones([3,3])
+    non_edge_labels = []
+    for lbl in cell_labels:
+        mask = convolve2d(ref_image==lbl, ones, mode="same")
+        border_values = ref_image[mask!=0]
+        border_values = border_values[border_values!=lbl]
+        if len(border_values==0) < 0.3 len(border_values):
+            non_edge_labels.append(lbl)
+    
+
 
     # Plotting
     fig = plt.figure()
@@ -691,7 +720,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
 
     # # Add annotation to all the cells in the image
     if show_labels:
-        coms, lbls = get_centers_of_mass(tracked_masks[10])
+        coms, lbls = get_centers_of_mass(ref_image)
         coms_commons = np.zeros((len(cell_labels),2))
         for i, lbl in enumerate(cell_labels):
             coms_commons[i] = coms[np.where(lbls==lbl)][0]
@@ -702,51 +731,4 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurence=9
             ax.annotate(lbl, (x[i], y[i]))
 
     plt.show()
-    return matrix
-
-
-def main():
-    # model_path = "C:/Users/workstation3/Documents/Hannas_models/the-master-model"
-    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/15_08_ctl.tif"
-    # savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15"
-    # name = "hep_oua_master_model"
-    # masks2 = get_segmentation(images_path, model_path, diam=32, save=True, savedir=savedir, name=name, track=True)
-    # tracked_masks = get_tracked_masks(masks, save=True, name=name, savedir=savedir)
-
-    # masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-07-25/ouabain2_btl15_distl20_masks.tif"
-    masks_path2 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/ctl_master_model_masks.tif"
-    # masks = open_masks(masks_path)
-    masks2 = open_masks(masks_path2)
-    images = open_image_stack(images_path)
-
-    # commons, count = get_common_cells(masks, 100)
-    # commons2, count = get_common_cells(masks2, 100)
-
-    # print(f"Commons: {commons}\n Count: {len(commons)}")
-    # print(f"Commons2: {commons2}\n Count2: {len(commons2)}")
-
-    # plot_cell_intensities(commons2, masks2, images, normalize=False, hpf=True, lpf=False)
-    # plot_xcorr_vs_distance(commons2[10], masks2, images, perc_req=100, normalize=False, hpf=False, lpf=False)
-    plot_xcorr_map(masks2, images, mode='total_sum', occurence=97, normalize=False, hpf=False, lpf=False)
-
-    
-    # tracked = get_tracked_masks(masks, name='ouabain2_btl15_distl20', save=True, savedir=savedir,
-                    #   backtrack_limit=15, dist_limit=20, random_labels=False)
-
-    # get_cross_correlation_by_distance(17, masks, images, plot=True)
-    # cells, counts = get_common_cells(masks)
-    # cells2, counts2 = get_common_cells(masks2)
-    # print("Cells " + str(cells))
-    # print("Cells2 " + str(cells2))
-    # plot_cell_intensities(cells, masks, images)
-
-    # commons, count = get_common_cells()
-    # print(get_common_cells(masks, 100))
-
-    # plot_xcorr_map(113, masks, images)
-    # plot_cross_correlation_by_distance(100, masks, images, 90)
-
-    # print(get_common_cells(masks))
-
-if __name__ == "__main__":
-    main()
+    return matrix, correlation_mean, correlation_variance
