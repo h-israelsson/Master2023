@@ -672,7 +672,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
                                                           cell_labels==i])
                 correlations += weighted_corr
             matrix[ref_image==lbl] = correlations
-            if (len(all_border_values)-bv_count)/len(all_border_values) < 0.3:
+            if (len(all_border_values)-bv_count) < 0.3*len(all_border_values):
                 correlations_list.append(correlations)
         correlation_mean = np.mean(np.array(correlations_list))
         correlation_variance = np.var(np.array(correlations_list))
@@ -717,4 +717,4 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
             ax.annotate(lbl, (x[i], y[i]))
 
     plt.show()
-    return matrix, correlation_mean, correlation_variance
+    return matrix, correlation_mean, correlation_variance   # THERE IS AN ERROR IN THE OUTPUT!
