@@ -579,8 +579,8 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
     return dists_sort, xcorr_list
 
 
-def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=97, normalize=False,
-                   hpf=False, lpf=False, show_labels=False, diam=30):
+def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=97, ref_image_idx=0,
+                   normalize=False, hpf=False, lpf=False, show_labels=False):
     """ plot a map of the cross correlation per cell
     
     Parameters
@@ -611,6 +611,9 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
         the percentage of images a cell has to appear in in order to be used
         in the cross correlation.
 
+    ref_image_idx: int (optional)
+        index of the image from tracked_masks to be used for the map
+
     normalize: bool (optional)
         if True, the intensities are normalized so that the intensities of
         different cells match better
@@ -631,7 +634,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
         have been exchanged for the corresponding correlation coefficients.
     """
 
-    ref_image = tracked_masks[10]
+    ref_image = tracked_masks[ref_image_idx]
     if mode == "nearest_neighbor":
         ref_image = np.pad(ref_image, 1, 'constant', constant_values=0)
     cell_labels, xxx = get_common_cells(tracked_masks, occurrence)
@@ -690,6 +693,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
             matrix[ref_image==lbl] = sum_corr
             correlations_list.append(sum_corr)
         matrix /= len(cell_labels)
+        correlations_list = np.array(correlations_list)
         correlations_list /= len(cell_labels)
         correlation_mean = np.mean(np.array(correlations_list))
         correlation_variance = np.var(np.array(correlations_list))
