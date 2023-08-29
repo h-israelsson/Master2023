@@ -632,6 +632,8 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
     """
 
     ref_image = tracked_masks[10]
+    if mode == "nearest_neighbor":
+        ref_image = np.pad(ref_image, 1, 'constant', constant_values=0)
     cell_labels, xxx = get_common_cells(tracked_masks, occurrence)
     matrix = np.zeros_like(ref_image, dtype=float)
     correlation_mean = 0
@@ -663,10 +665,6 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
                 continue
             mask = convolve2d(ref_image==lbl, conv_krnl, mode="same")
             all_border_values = ref_image[mask!=0]
-            if not any(all_border_values):
-                print(lbl)
-                np.delete(cell_labels, cell_labels==lbl)
-                continue
             all_border_values = all_border_values[all_border_values!=lbl]
             # We only want to take the elements in cell_labels into account
             border_values = all_border_values[np.in1d(all_border_values,
@@ -726,18 +724,4 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
             ax.annotate(lbl, (x[i], y[i]))
 
     plt.show()
-    return matrix, correlation_mean, correlation_variance   # THERE IS AN ERROR IN THE OUTPUT!
-
-
-def main():
-    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/15_08_ctl.tif"
-    name = "ctl-mm2-dl10-btl15"
-    masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/" + name + "_masks.tif"
-
-    images = open_image_stack(images_path)
-    masks = open_masks(masks_path)
-
-    plot_xcorr_map(masks, images, mode='nearest_neighbor', normalize=True, occurrence=80, show_labels=True)
-
-if __name__ == "__main__":
-    main()
+    return matrix, correlation_mean, correlation_variance
