@@ -633,7 +633,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
 
     ref_image = tracked_masks[10]
     cell_labels, xxx = get_common_cells(tracked_masks, occurrence)
-    matrix = np.zeros_like(tracked_masks[0], dtype=float)
+    matrix = np.zeros_like(ref_image, dtype=float)
     correlation_mean = 0
     correlation_variance = 0
     intensities = []
@@ -656,20 +656,28 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
     if mode=="nearest_neighbor":        # CONTROL SOMEHOW IF THIS ALL ACTUALLY WORKS!
         xcorr_matrix = np.corrcoef(intensities)
         conv_krnl = np.ones([3,3])
-        for lbl in cell_labels:
+        start_cell_labels = cell_labels
+        for lbl in start_cell_labels:
+            if not any(ref_image.flatten()==lbl):
+                cell_labels = np.delete(cell_labels, cell_labels==lbl)
+                continue
             mask = convolve2d(ref_image==lbl, conv_krnl, mode="same")
             all_border_values = ref_image[mask!=0]
+            if not any(all_border_values):
+                print(lbl)
+                np.delete(cell_labels, cell_labels==lbl)
+                continue
             all_border_values = all_border_values[all_border_values!=lbl]
             # We only want to take the elements in cell_labels into account
             border_values = all_border_values[np.in1d(all_border_values,
-                                                      cell_labels)]
+                                                      start_cell_labels)]
             bv_count = len(border_values)
             correlations = 0
             for i in np.unique(border_values):
                 weight = float(np.count_nonzero(border_values==i))/\
                     float(bv_count)
-                weighted_corr = weight*float(xcorr_matrix[cell_labels==lbl,
-                                                          cell_labels==i])
+                weighted_corr = weight*float(xcorr_matrix[start_cell_labels==lbl,
+                                                          start_cell_labels==i])
                 correlations += weighted_corr
             matrix[ref_image==lbl] = correlations
             if (len(all_border_values)-bv_count) < 0.3*len(all_border_values):
@@ -684,6 +692,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
             matrix[ref_image==lbl] = sum_corr
             correlations_list.append(sum_corr)
         matrix /= len(cell_labels)
+        correlations_list /= len(cell_labels)
         correlation_mean = np.mean(np.array(correlations_list))
         correlation_variance = np.var(np.array(correlations_list))
 
@@ -707,14 +716,28 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
     # # Add annotation to all the cells in the image
     if show_labels:
         coms, lbls = get_centers_of_mass(ref_image)
-        coms_commons = np.zeros((len(cell_labels),2))
-        for i, lbl in enumerate(cell_labels):
-            coms_commons[i] = coms[np.where(lbls==lbl)][0]
-        y = coms_commons[:, 0]
-        x = coms_commons[:, 1]
+        coms_commons = []
+        for lbl in cell_labels:
+            coms_commons.append(list(coms[lbls==lbl]))
+        y = [com[0][0] for com in coms_commons]
+        x = [com[0][1] for com in coms_commons]
         plt.scatter(x,y, marker='.', color="red")
         for i, lbl in enumerate(cell_labels):
             ax.annotate(lbl, (x[i], y[i]))
 
     plt.show()
     return matrix, correlation_mean, correlation_variance   # THERE IS AN ERROR IN THE OUTPUT!
+
+
+def main():
+    images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/15_08_ctl.tif"
+    name = "ctl-mm2-dl10-btl15"
+    masks_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/" + name + "_masks.tif"
+
+    images = open_image_stack(images_path)
+    masks = open_masks(masks_path)
+
+    plot_xcorr_map(masks, images, mode='nearest_neighbor', normalize=True, occurrence=80, show_labels=True)
+
+if __name__ == "__main__":
+    main()
