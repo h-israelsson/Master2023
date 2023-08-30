@@ -56,7 +56,7 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
                                       flow_threshold=0.4, do_3D=False)
     masks = np.array(masks)
 
-    if name == None:
+    if save==True and name==None:
         name=splitext(basename(image_path))[0]
     if track:
         masks = get_tracked_masks(masks=masks, save=save, name=name, savedir=savedir)
