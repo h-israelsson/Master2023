@@ -688,15 +688,15 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
 
     if mode=="total_sum":
         xcorr = np.corrcoef(intensities)
+        corr_elems_count = len(cell_labels)-1 # We don't correlate with self
         for i, lbl in enumerate(cell_labels):
-            sum_corr = float(np.sum(xcorr[i]))
-            matrix[ref_image==lbl] = sum_corr
-            correlations_list.append(sum_corr)
-        matrix /= len(cell_labels)
+            # Get average correlation with all cells except self
+            mean_corr = (float(np.sum(xcorr[i])-1))/(float(corr_elems_count))
+            matrix[ref_image==lbl] = mean_corr
+            correlations_list.append(mean_corr)
         correlations_list = np.array(correlations_list)
-        correlations_list /= len(cell_labels)
-        correlation_mean = np.mean(np.array(correlations_list))
-        correlation_variance = np.var(np.array(correlations_list))
+        correlation_mean = np.mean(correlations_list)
+        correlation_variance = np.var(correlations_list)
 
     # Plotting
     fig = plt.figure()
