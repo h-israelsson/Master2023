@@ -303,7 +303,7 @@ def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=Fa
     return tracked_masks
 
 
-def get_tracked_masks2(masks, overlap_limit=0.8, backtrack_limit=15,
+def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
                        random_labels=False, save=False, name=None,
                        savedir=None):
     """ track the cells
@@ -352,17 +352,26 @@ def get_tracked_masks2(masks, overlap_limit=0.8, backtrack_limit=15,
         for lbl in np.unique(masks[imnr][masks[imnr]!=0]):
             cell_area = np.count_nonzero(masks[imnr]==lbl)
             min_overlap = round(overlap_limit*cell_area)
+            # print(min_overlap)
             for k in range(1, backtrack_limit+1):
                 overlap_values = masks[imnr-k][masks[imnr]==lbl]
                 counts = np.bincount(overlap_values)
+                # print(overlap_values)
+                # print(counts)
+                # input("Some first input")
                 if max(counts)>=min_overlap and np.argmax(counts)!=0:
                     new_cell_value = np.argmax(counts)
+                    # print(new_cell_value)
+                    # print(lbl)
                     break
-                if k == backtrack_limit:    # No matching cell found
+                if k==backtrack_limit or imnr-k==0:    # No matching cell found
                     new_cells += 1
                     new_cell_value = np.max(tracked_masks[:imnr].flatten())+new_cells
-            coords = np.argwhere(masks[imnr].flatten() ==lbl)
+                    break
+            coords = np.argwhere(masks[imnr].flatten()==lbl)
             np.put(tracked_masks[imnr], coords, new_cell_value)
+            # print(tracked_masks[imnr][masks[imnr]==lbl])
+            # input("Some input")
 
     if save:
         _save_masks(tracked_masks, name=name, savedir=savedir)
@@ -801,7 +810,7 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
 model_path = 'C:/Users/workstation3/Documents/Hannas_models/for-the-report-cyto2'
 images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06/ctl.tif"
 savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06"
-name = "ctl-ftpc2-diam207-btl15-dl9_4"
+name = "ctl-ftpc2-diam207-btl15-dl9_5"
 masks_path = savedir + "/" + name + "_masks.tif"
 
 images_ctl = open_image_stack(images_path)
