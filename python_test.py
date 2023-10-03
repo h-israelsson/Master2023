@@ -24,7 +24,7 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
         in order to be segmented correctly.
     model_path: str
         the path to the model to use for segmenting
-    diam: int (optional)
+    diam: float (optional)
         approximate diameter of the cells in pixels. View the image in
         Cellpose API to get an idea of this value.
     save: bool (optional)
@@ -298,6 +298,73 @@ def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=Fa
 
     if save:
         # savedir = "NewMasks_"+str(date.today())
+        _save_masks(tracked_masks, name=name, savedir=savedir)
+
+    return tracked_masks
+
+
+def get_tracked_masks2(masks, overlap_limit=0.8, backtrack_limit=15,
+                       random_labels=False, save=False, name=None,
+                       savedir=None):
+    """ track the cells
+
+    Tracks cells and returns a list of masks, where each separate 
+    cell is given the same label (integer number) in every mask.
+    Parameters
+    ---------------
+    masks: 3D array
+        previously generated segmentation of cells
+    overlap_limit: float (optional)
+        the fraction of overlap cells need to have to be considered the same
+        cell.
+    backtrack_limit: int (optional)
+        the maximum number of images back that the algorithm will search
+        through to find a center of mass within the distance limit
+        (dist_limit). Make smaller if cells are moving a lot.
+    random_labels: bool
+        if True, the cells will be assigned random lables from the start,
+        rather than keeping the labels from the first image in masks
+    save: bool (optional)
+        if True, the masks are saved as a single .tif file
+    name: str (optional)
+        name of the file to be saved. Default name is '[today's date]'.
+        '_masks.tif' is always added to the name.
+    savedir: str (optional)
+        the directory in which to save the file. Default to save in current
+        folder.
+    Returns
+    ---------------
+    tracked_masks: 3D array
+        an aray with the same masks as given as input, but updated labels to
+        match between images.
+    """
+    tracked_masks = np.zeros_like(masks)
+    COMs, roi_labels = get_centers_of_mass(masks)
+
+    if random_labels:
+        tracked_masks[0] = assign_random_cell_labels(masks[0])
+    else:
+        tracked_masks[0] = masks[0]
+
+    for imnr in range(1, len(masks)):
+        new_cells = 0
+        # Use overlap of area of cells instead of center of mass.
+        for lbl in np.unique(masks[imnr][masks[imnr]!=0]):
+            cell_area = np.count_nonzero(masks[imnr]==lbl)
+            min_overlap = round(overlap_limit*cell_area)
+            for k in range(1, backtrack_limit+1):
+                overlap_values = masks[imnr-k][masks[imnr]==lbl]
+                counts = np.bincount(overlap_values)
+                if max(counts)>=min_overlap and np.argmax(counts)!=0:
+                    new_cell_value = np.argmax(counts)
+                    break
+                if k == backtrack_limit:    # No matching cell found
+                    new_cells += 1
+                    new_cell_value = np.max(tracked_masks[:imnr].flatten())+new_cells
+            coords = np.argwhere(masks[imnr].flatten() ==lbl)
+            np.put(tracked_masks[imnr], coords, new_cell_value)
+
+    if save:
         _save_masks(tracked_masks, name=name, savedir=savedir)
 
     return tracked_masks
@@ -729,3 +796,16 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
 
     plt.show()
     return matrix, correlation_mean, correlation_variance
+
+
+model_path = 'C:/Users/workstation3/Documents/Hannas_models/for-the-report-cyto2'
+images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06/ctl.tif"
+savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06"
+name = "ctl-ftpc2-diam207-btl15-dl9_4"
+masks_path = savedir + "/" + name + "_masks.tif"
+
+images_ctl = open_image_stack(images_path)
+masks_ctl = open_masks(savedir+"/ctl_untracked_segmentation_masks.tif")
+
+# masks_ctl = get_segmentation(images_path, model_path, diam=20.7, save=True, name="ctl_untracked_segmentation", savedir=savedir, track=False)
+tracked_masks_ctl = get_tracked_masks2(masks_ctl, save=True, name=name, savedir=savedir)
