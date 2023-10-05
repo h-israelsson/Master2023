@@ -9,6 +9,7 @@ from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from scipy.signal import butter, filtfilt, convolve2d
+import pandas as pd
 
 def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
                      track=True, name=None):
@@ -339,7 +340,6 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
         match between images.
     """
     tracked_masks = np.zeros_like(masks)
-    COMs, roi_labels = get_centers_of_mass(masks)
 
     if random_labels:
         tracked_masks[0] = assign_random_cell_labels(masks[0])
@@ -354,7 +354,7 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
             min_overlap = round(overlap_limit*cell_area)
             # print(min_overlap)
             for k in range(1, backtrack_limit+1):
-                overlap_values = masks[imnr-k][masks[imnr]==lbl]
+                overlap_values = tracked_masks[imnr-k][masks[imnr]==lbl]
                 counts = np.bincount(overlap_values)
                 # print(overlap_values)
                 # print(counts)
@@ -370,8 +370,8 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
                     break
             coords = np.argwhere(masks[imnr].flatten()==lbl)
             np.put(tracked_masks[imnr], coords, new_cell_value)
-            # print(tracked_masks[imnr][masks[imnr]==lbl])
-            # input("Some input")
+        # print(len((tracked_masks[imnr]-masks[imnr])[(tracked_masks[imnr]-masks[imnr])!=0]))
+        # input("Some input")
 
     if save:
         _save_masks(tracked_masks, name=name, savedir=savedir)
@@ -379,10 +379,11 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
     return tracked_masks
 
 
-def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=False, lpf=False):
-    """ get the realtive mean intensities for specified cell in every image
+def get_cell_intensities(cell_label, tracked_cells, images, T=10,
+                         normalize=True, hpf=False, lpf=False):
+    """ get the intensities of a specified cell in all images
     
-    Calculates the relative mean intensity for specified cell in each image.
+    Calculates the intensity of a specified cell in each image.
     If the cell does not appear in one of the images, the intensity will be
     set to the same value as previous image.
     Parameters
@@ -394,9 +395,10 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
     images: 3D array
         The images from which the tracked cells mask was generated and the
         intensity should be retrieved from
+    T : int or float
+        period of imaging (time between images) in seconds
     normalize: bool (optional)
-        if True, the intensities are normalized so that the intensities of
-        different cells match better
+        if True, the intensities are min-max normalized to a range of 0 to 1
     hpf: bool (optional)
         whether to do high-pass filtering or not
     lpf: bool (optional)
@@ -413,11 +415,14 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
     T = 10                  # period of sampling
 
     for i in range(images_count):
-        intensities = images[i][tracked_cells[i] == cell_label]
+        intensities = images[i][tracked_cells[i]==cell_label]
         if np.any(intensities):
             mean_intensities[i] = np.mean(intensities)
         else:
-            mean_intensities[i] = mean_intensities[i-1]
+            mean_intensities[i] = np.NaN
+
+    mean_intensities = pd.Series(mean_intensities).interpolate().tolist()    
+    
     if hpf:
         # freqs = np.fft.fftfreq(len(mean_intensities), T)
         # filter_mask = np.abs(freqs) > hpf_cutoff_freq
@@ -433,8 +438,8 @@ def get_cell_intensities(cell_label, tracked_cells, images, normalize=True, hpf=
         filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
         mean_intensities = filtered_signal
     if normalize:
-        mean_intensities = (mean_intensities - np.min(mean_intensities))/\
-            (np.mean(mean_intensities)-np.min(mean_intensities))
+        mean_intensities = (mean_intensities - min(mean_intensities))/\
+            (max(mean_intensities)-min(mean_intensities))
     return mean_intensities
 
 
@@ -463,7 +468,8 @@ def assign_random_cell_labels(mask):
     return randomized_mask
 
 
-def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hpf=False, lpf=False):
+def plot_cell_intensities(cell_labels, tracked_cells, images, T=10,
+                          normalize=True, hpf=False, lpf=False):
     """ plot relative mean intensities for specified cells
     
     Parameters
@@ -474,9 +480,10 @@ def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hp
         tracked segmentation mask
     images: 3D array
         the images from which the intensities should be taken
+    T : int or float
+        period of imaging (time between images) in seconds
     normalize: bool (optional)
-        if True, the intensities are normalized so that the intensities of
-        different cells match better
+        if True, the intensities are min-max normalized to a range of 0 to 1
     hpf: bool (optional)
         whether to do high-pass filtering or not
     lpf: bool (optional)
@@ -485,7 +492,6 @@ def plot_cell_intensities(cell_labels, tracked_cells, images, normalize=True, hp
     ---------------
     None
     """
-    T = 10 # The period between each image
     image_count = len(images)
     x = np.linspace(0,0+(T*image_count), image_count, endpoint=False)
 
@@ -807,14 +813,14 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
     return matrix, correlation_mean, correlation_variance
 
 
-model_path = 'C:/Users/workstation3/Documents/Hannas_models/for-the-report-cyto2'
-images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06/ctl.tif"
-savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06"
-name = "ctl-ftpc2-diam207-btl15-dl9_5"
-masks_path = savedir + "/" + name + "_masks.tif"
+# model_path = 'C:/Users/workstation3/Documents/Hannas_models/for-the-report-cyto2'
+# images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06/ctl.tif"
+# savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06"
+# name = "ctl-ftpc2-diam207-btl15-dl9_6"
+# masks_path = savedir + "/" + name + "_masks.tif"
 
-images_ctl = open_image_stack(images_path)
-masks_ctl = open_masks(savedir+"/ctl_untracked_segmentation_masks.tif")
+# images_ctl = open_image_stack(images_path)
+# masks_ctl = open_masks(savedir+"/ctl_untracked_segmentation_masks.tif")
 
-# masks_ctl = get_segmentation(images_path, model_path, diam=20.7, save=True, name="ctl_untracked_segmentation", savedir=savedir, track=False)
-tracked_masks_ctl = get_tracked_masks2(masks_ctl, save=True, name=name, savedir=savedir)
+# # masks_ctl = get_segmentation(images_path, model_path, diam=20.7, save=True, name="ctl_untracked_segmentation", savedir=savedir, track=False)
+# tracked_masks_ctl = get_tracked_masks2(masks_ctl, save=True, name=name, savedir=savedir)
