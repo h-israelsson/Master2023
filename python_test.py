@@ -139,9 +139,10 @@ def extract_images_for_training(images_path, interval=50, savedir=None,
     Parameters
     ---------------
     images_path: str
-        the path to the image stack to extract the images from
+        the path to the image stack (.tif file) to extract the images
+        from
     interval: int (optional)
-        interval between the images to be extracted
+        every [interval]'th image will be extracted
     savedir: str (optional)
         directory in which to save the extracted images. Default to save
         the images in current directory.
@@ -384,8 +385,8 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
     """ get the intensities of a specified cell in all images
     
     Calculates the intensity of a specified cell in each image.
-    If the cell does not appear in one of the images, the intensity will be
-    set to the same value as previous image.
+    If the cell does not appear in one of the images, the intensity
+    will be given by linear interpolation of existing values.
     Parameters
     ---------------
     cell_label: int
@@ -412,7 +413,6 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
     mean_intensities = np.zeros(images_count)
     hpf_cutoff_freq = 0.0025
     lpf_cutoff_freq = 0.005
-    T = 10                  # period of sampling
 
     for i in range(images_count):
         intensities = images[i][tracked_cells[i]==cell_label]
@@ -438,8 +438,8 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
         filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
         mean_intensities = filtered_signal
     if normalize:
-        mean_intensities = (mean_intensities - min(mean_intensities))/\
-            (max(mean_intensities)-min(mean_intensities))
+        mean_intensities = (mean_intensities - np.min(mean_intensities))/\
+            (np.max(mean_intensities)-np.min(mean_intensities))
     return mean_intensities
 
 
