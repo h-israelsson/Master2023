@@ -381,7 +381,7 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
 
 
 def get_cell_intensities(cell_label, tracked_cells, images, T=10,
-                         normalize=True, hpf=False, lpf=False):
+                         normalize=None, hpf=0.0005, lpf=0.017, n=None, cutoff_peakheight=None):
     """ get the intensities of a specified cell in all images
     
     Calculates the intensity of a specified cell in each image.
@@ -399,6 +399,7 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
     T : int or float
         period of imaging (time between images) in seconds
     normalize: bool (optional)
+        'minmax'
         if True, the intensities are min-max normalized to a range of 0 to 1
     hpf: bool (optional)
         whether to do high-pass filtering or not
@@ -410,37 +411,46 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
         mean (normalized) intensity of the cell for each image
     """
     images_count = len(images)
-    mean_intensities = np.zeros(images_count)
+    intensities = np.zeros(images_count)
     hpf_cutoff_freq = 0.0025
     lpf_cutoff_freq = 0.005
 
     for i in range(images_count):
-        intensities = images[i][tracked_cells[i]==cell_label]
-        if np.any(intensities):
-            mean_intensities[i] = np.mean(intensities)
+        intsies = images[i][tracked_cells[i]==cell_label]
+        if np.any(intsies):
+            intensities[i] = np.mean(intsies)
         else:
-            mean_intensities[i] = np.NaN
+            intensities[i] = np.NaN
 
-    mean_intensities = pd.Series(mean_intensities).interpolate().tolist()    
-    
+    intensities = pd.Series(intensities).interpolate().tolist()    
+
+    if n:
+        for i in range(n):
+            intensities[i] = np.mean(intensities[0:i+n])
+        for i in range(4,len(intensities)):
+            intensities[i] = np.mean(intensities[i-n:i+n])
     if hpf:
-        # freqs = np.fft.fftfreq(len(mean_intensities), T)
-        # filter_mask = np.abs(freqs) > hpf_cutoff_freq
-        # intensities_fft = np.fft.fft(mean_intensities)
-        # filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        # mean_intensities = filtered_signal
-        a, b = butter(3, 0.025, 'highpass')
-        mean_intensities = filtfilt(a, b, mean_intensities)
-    if lpf:
-        freqs = np.fft.fftfreq(len(mean_intensities), T)
-        filter_mask = np.abs(freqs) < lpf_cutoff_freq
-        intensities_fft = np.fft.fft(mean_intensities)
+        hpf_cutoff_freq = hpf
+        freqs = np.fft.fftfreq(len(intensities), T)
+        filter_mask = np.abs(freqs) > hpf_cutoff_freq
+        intensities_fft = np.fft.fft(intensities)
         filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        mean_intensities = filtered_signal
-    if normalize:
-        mean_intensities = (mean_intensities - np.min(mean_intensities))/\
-            (np.max(mean_intensities)-np.min(mean_intensities))
-    return mean_intensities
+        intensities = filtered_signal
+    if lpf:
+        lpf_cutoff_freq = lpf
+        freqs = np.fft.fftfreq(len(intensities), T)
+        filter_mask = np.abs(freqs) < lpf_cutoff_freq
+        intensities_fft = np.fft.fft(intensities)
+        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+        intensities = filtered_signal
+    if normalize=='minmax':
+        intensities = (intensities - np.min(intensities))/\
+            (np.max(intensities)-np.min(intensities))
+    if cutoff_peakheight!=None:
+        for i in range(len(intensities)):
+            if intensities[i]<cutoff_peakheight:
+                intensities[i] = 0
+    return np.array(intensities)
 
 
 def assign_random_cell_labels(mask):
@@ -563,6 +573,7 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
     return corrcoefs
 
 
+
 def get_common_cells(tracked_masks, occurrence=100):
     """ get the cells that appear in at least [occurrence] percent of images
     
@@ -597,7 +608,7 @@ def get_common_cells(tracked_masks, occurrence=100):
     commons = np.array(commons)
     counts = np.array(counts)
     return commons, counts
-    
+
 
 def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
                            normalize=False, hpf=False, lpf=False, plot=True):
@@ -813,14 +824,73 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
     return matrix, correlation_mean, correlation_variance
 
 
-# model_path = 'C:/Users/workstation3/Documents/Hannas_models/for-the-report-cyto2'
-# images_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06/ctl.tif"
-# savedir = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-09-06"
-# name = "ctl-ftpc2-diam207-btl15-dl9_6"
-# masks_path = savedir + "/" + name + "_masks.tif"
+def get_cc(intensities1, intensities2, max_dt):
+    def cc(f1, f2):
+        return np.sum(f1*f2)
+    
+    def ccn(f1, f2):
+        return cc(f1,f2)/np.sqrt(cc(f1,f1)*cc(f2,f2))
 
-# images_ctl = open_image_stack(images_path)
-# masks_ctl = open_masks(savedir+"/ctl_untracked_segmentation_masks.tif")
+    correlation_list = []
+    for dt in range(max_dt,0,-1):
+        correlation_list.append(ccn(intensities1[:-dt],intensities2[dt:]))
+    correlation_list.append(ccn(intensities1,intensities2))
+    for dt in range(1, max_dt+1):
+        correlation_list.append(ccn(intensities1[dt:],intensities2[:-dt]))
 
-# # masks_ctl = get_segmentation(images_path, model_path, diam=20.7, save=True, name="ctl_untracked_segmentation", savedir=savedir, track=False)
-# tracked_masks_ctl = get_tracked_masks2(masks_ctl, save=True, name=name, savedir=savedir)
+    return correlation_list
+
+
+def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
+                       occurrence=97, ref_image_idx=0, max_dt=200,
+                       normalize=False, hpf=0.0005, lpf=0.017, T=10,
+                       n=None, cutoff_peakheight=None, plot=True):
+    
+    cell_labels, counts = get_common_cells(tracked_masks, occurrence)
+
+    intsies_lbl_dict = {}
+    for lbl in cell_labels:
+        intsy = get_cell_intensities(lbl, tracked_masks, images, T, normalize, hpf, lpf, n, cutoff_peakheight)
+        intsies_lbl_dict[lbl] = intsy
+    
+    if mode == "single":
+        cc_dict = {}
+        dtmax_dict = {}
+        for lbl in cell_labels:
+            cc = get_cc(intsies_lbl_dict[lbl], intsies_lbl_dict[ref_cell_lbl], max_dt)
+            cc_dict[lbl] = np.max(cc)
+            dtmax_dict[lbl] = (np.argmax(cc)-max_dt)*T
+
+        if plot:
+            cc_plot = np.zeros_like(tracked_masks[ref_image_idx], 'float')
+            dtmax_plot = np.zeros_like(tracked_masks[ref_image_idx], 'float')
+
+            for lbl in cell_labels:
+                cc_plot[tracked_masks[ref_image_idx]==lbl] = cc_dict[lbl]
+                dtmax_plot[tracked_masks[ref_image_idx]==lbl] = dtmax_dict[lbl]
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            cc_plot_masked = np.ma.masked_where(cc_plot==0, cc_plot)
+            cmap = cm.hot   # This doesn't seem to do anything
+            cmap.set_bad(color='white')
+            cax = ax.imshow(cc_plot_masked)
+            fig.colorbar(cax, label="Maximal cross corelation")
+            plt.show()
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            dtmax_plot_masked = np.ma.masked_where(dtmax_plot==0, dtmax_plot)
+            cmap = cm.hot   # This doesn't seem to do anything
+            cmap.set_bad(color='white')
+            cax = ax.imshow(dtmax_plot_masked)
+            fig.colorbar(cax, label="dt at maximal cross correlation")
+            plt.show()
+
+        return cc_dict, dtmax_dict, cc_plot, dtmax_plot
+        
+
+
+
+
+
