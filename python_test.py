@@ -611,7 +611,8 @@ def get_common_cells(tracked_masks, occurrence=100):
 
 
 def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
-                           normalize=False, hpf=False, lpf=False, plot=True):
+                           normalize=False, hpf=0.0005, lpf=0.017, plot=True,
+                           maxdt=200, T=10, n=None, cutoff_peakheight=None):
     """ plot cross correlation as a function of distance from a reference cell
 
     The reference cell has to appear in the first image.
@@ -654,12 +655,15 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
     dists_sort, cell_lbls_sort = (list(t) for t in 
                                   zip(*sorted(zip(dists, comparison_cells))))
     xcorr_list = []
+    dtmax_list = []
     ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images,
                                               normalize, hpf, lpf)
 
     for cell in cell_lbls_sort:
-        intensity = get_cell_intensities(cell, tracked_masks, images)
-        xcorr_list.append(np.corrcoef(ref_cell_intensity, intensity)[0,1])
+        intensity = get_cell_intensities(cell, tracked_masks, images, T, normalize, hpf, lpf, n, cutoff_peakheight)
+        xcorr = get_cc(ref_cell_intensity, intensity, maxdt)
+        xcorr_list.append(np.max(xcorr))
+        dtmax_list.append((np.argmax(xcorr)-maxdt)*T)
 
     if plot:
         plt.figure()
