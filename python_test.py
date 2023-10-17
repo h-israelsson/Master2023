@@ -197,7 +197,7 @@ def get_cell_labels(masks):
     return all_labels
 
 
-def get_centers_of_mass(masks):
+def get_centers_of_mass(masks, cell_labels=None):
     """ get centers of mass for each cell
 
     Calculates the coordinates for the center of mass for each cell in each
@@ -213,15 +213,16 @@ def get_centers_of_mass(masks):
     labels: 1D or 2D list
         the labels of all the cells, in the same order as the centers of mass
     """
-    labels = get_cell_labels(masks)
+    if cell_labels==None:
+        cell_labels = get_cell_labels(masks)
     if len(masks.shape) == 3:
         COMs = []
         for i in range(masks.shape[0]):
-            COMs_i = np.array(ndimage.center_of_mass(masks[i], masks[i], labels[i]))
+            COMs_i = np.array(ndimage.center_of_mass(masks[i], masks[i], cell_labels[i]))
             COMs.append(COMs_i)
     if len(masks.shape) == 2:
-        COMs = np.array(ndimage.center_of_mass(masks, masks, labels))
-    return COMs, labels
+        COMs = np.array(ndimage.center_of_mass(masks, masks, cell_labels))
+    return COMs, cell_labels
 
 
 def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=False,
@@ -861,18 +862,26 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
     if mode == "single":
         cc_dict = {}
         dtmax_dict = {}
+
+        def plot_lbls(coms, cell_labels):
+            y,x = zip(*coms)
+            plt.scatter(x,y, marker='.', color="red")
+            for i, lbl in enumerate(cell_labels):
+                ax.annotate(lbl, (x[i], y[i]))
+
         for lbl in cell_labels:
             cc = get_cc(intsies_lbl_dict[lbl], intsies_lbl_dict[ref_cell_lbl], max_dt)
             cc_dict[lbl] = np.max(cc)
             dtmax_dict[lbl] = (np.argmax(cc)-max_dt)*T
 
         if plot:
-            cc_plot = np.zeros_like(tracked_masks[ref_image_idx], 'float')
-            dtmax_plot = np.zeros_like(tracked_masks[ref_image_idx], 'float')
+            ref_image = tracked_masks[ref_image_idx]
+            cc_plot = np.zeros_like(ref_image, 'float')
+            dtmax_plot = np.zeros_like(ref_image, 'float')
 
             for lbl in cell_labels:
-                cc_plot[tracked_masks[ref_image_idx]==lbl] = cc_dict[lbl]
-                dtmax_plot[tracked_masks[ref_image_idx]==lbl] = dtmax_dict[lbl]
+                cc_plot[ref_image==lbl] = cc_dict[lbl]
+                dtmax_plot[ref_image==lbl] = dtmax_dict[lbl]
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
@@ -881,6 +890,9 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
             cmap.set_bad(color='white')
             cax = ax.imshow(cc_plot_masked)
             fig.colorbar(cax, label="Maximal cross corelation")
+            if show_labels:
+                coms, lbls = get_centers_of_mass(ref_image, cell_labels)
+                plot_lbls(coms, cell_labels)
             plt.show()
 
             fig = plt.figure()
@@ -890,18 +902,8 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
             cmap.set_bad(color='white')
             cax = ax.imshow(dtmax_plot_masked)
             fig.colorbar(cax, label="dt at maximal cross correlation")
-
             if show_labels:
-                coms, lbls = get_centers_of_mass(ref_image)
-                coms_commons = []
-                for lbl in cell_labels:
-                    coms_commons.append(list(coms[lbls==lbl]))
-                y = [com[0][0] for com in coms_commons]
-                x = [com[0][1] for com in coms_commons]
-                plt.scatter(x,y, marker='.', color="red")
-                for i, lbl in enumerate(cell_labels):
-                    ax.annotate(lbl, (x[i], y[i]))
-
+                plot_lbls(coms, cell_labels)
             plt.show()
 
         return cc_dict, dtmax_dict, cc_plot, dtmax_plot
