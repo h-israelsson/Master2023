@@ -646,10 +646,9 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
         normalized cross correlation between reference cell and the other
         cells, sorted by distance from reference cell.
     """
-    coms, cell_lbls = get_centers_of_mass(tracked_masks[0])
-    comparison_cells, count = get_common_cells(tracked_masks, perc_req)
-    coms = coms[np.isin(cell_lbls, comparison_cells)]
-    com_ref = coms[comparison_cells == ref_cell]
+    cell_lbls, count = get_common_cells(tracked_masks, perc_req)
+    coms, cell_lbls = get_centers_of_mass(tracked_masks[0], cell_lbls)
+    com_ref = coms[cell_lbls==ref_cell]
 
     dists = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
 
@@ -668,10 +667,12 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
 
     if plot:
         plt.figure()
-        plt.plot(dists_sort, xcorr_list, '.')
+        plt.scatter(dists_sort, xcorr_list, marker='.',color="red", label="Maximal cross-correlation")
+        plt.scatter(dists_sort, dtmax_list, marker='.',color="blue", label="dt at maximum cross-correlation")
         plt.xlabel("Distance from reference cell (pixels)")
         plt.ylabel("Cross correlation")
         plt.title("Cross correlation as a function of distance from cell " + str(ref_cell))
+        plt.legend()
         plt.show()
 
     return dists_sort, xcorr_list
@@ -852,8 +853,23 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
                        n=None, cutoff_peakheight=None, plot=True,
                        show_labels=False):
     
-    cell_labels, counts = get_common_cells(tracked_masks, occurrence)
+    def plot_data(data,show_labels,cbar_label,ref_image,cell_labels):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        data_masked = np.ma.masked_where(data==0, data)
+        cmap = cm.hot   # This doesn't seem to do anything
+        cmap.set_bad(color='white')
+        cax = ax.imshow(data_masked)
+        fig.colorbar(cax, label=cbar_label)
+        if show_labels:
+            coms, lbls = get_centers_of_mass(ref_image, cell_labels)
+            y,x = zip(*coms)
+            plt.scatter(x,y, marker='.', color="red")
+            for i, lbl in enumerate(lbls):
+                ax.annotate(lbl, (x[i], y[i]))
+        plt.show()
 
+    cell_labels, counts = get_common_cells(tracked_masks, occurrence)
     intsies_lbl_dict = {}
     for lbl in cell_labels:
         intsy = get_cell_intensities(lbl, tracked_masks, images, T, normalize, hpf, lpf, n, cutoff_peakheight)
@@ -862,12 +878,6 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
     if mode == "single":
         cc_dict = {}
         dtmax_dict = {}
-
-        def plot_lbls(coms, cell_labels):
-            y,x = zip(*coms)
-            plt.scatter(x,y, marker='.', color="red")
-            for i, lbl in enumerate(cell_labels):
-                ax.annotate(lbl, (x[i], y[i]))
 
         for lbl in cell_labels:
             cc = get_cc(intsies_lbl_dict[lbl], intsies_lbl_dict[ref_cell_lbl], max_dt)
@@ -883,28 +893,8 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
                 cc_plot[ref_image==lbl] = cc_dict[lbl]
                 dtmax_plot[ref_image==lbl] = dtmax_dict[lbl]
 
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            cc_plot_masked = np.ma.masked_where(cc_plot==0, cc_plot)
-            cmap = cm.hot   # This doesn't seem to do anything
-            cmap.set_bad(color='white')
-            cax = ax.imshow(cc_plot_masked)
-            fig.colorbar(cax, label="Maximal cross corelation")
-            if show_labels:
-                coms, lbls = get_centers_of_mass(ref_image, cell_labels)
-                plot_lbls(coms, cell_labels)
-            plt.show()
-
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            dtmax_plot_masked = np.ma.masked_where(dtmax_plot==0, dtmax_plot)
-            cmap = cm.hot   # This doesn't seem to do anything
-            cmap.set_bad(color='white')
-            cax = ax.imshow(dtmax_plot_masked)
-            fig.colorbar(cax, label="dt at maximal cross correlation")
-            if show_labels:
-                plot_lbls(coms, cell_labels)
-            plt.show()
+            plot_data(cc_plot,True,"Maximal cross-correlation",ref_image,cell_labels)
+            plot_data(dtmax_plot,True,"dt at maximal cross-correlation",ref_image,cell_labels)
 
         return cc_dict, dtmax_dict, cc_plot, dtmax_plot
         
