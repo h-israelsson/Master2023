@@ -848,7 +848,8 @@ def get_cc(intensities1, intensities2, max_dt):
 def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
                        occurrence=97, ref_image_idx=0, max_dt=200,
                        normalize=False, hpf=0.0005, lpf=0.017, T=10,
-                       n=None, cutoff_peakheight=None, plot=True):
+                       n=None, cutoff_peakheight=None, plot=True,
+                       show_labels=False):
     
     cell_labels, counts = get_common_cells(tracked_masks, occurrence)
 
@@ -889,6 +890,18 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
             cmap.set_bad(color='white')
             cax = ax.imshow(dtmax_plot_masked)
             fig.colorbar(cax, label="dt at maximal cross correlation")
+
+            if show_labels:
+                coms, lbls = get_centers_of_mass(ref_image)
+                coms_commons = []
+                for lbl in cell_labels:
+                    coms_commons.append(list(coms[lbls==lbl]))
+                y = [com[0][0] for com in coms_commons]
+                x = [com[0][1] for com in coms_commons]
+                plt.scatter(x,y, marker='.', color="red")
+                for i, lbl in enumerate(cell_labels):
+                    ax.annotate(lbl, (x[i], y[i]))
+
             plt.show()
 
         return cc_dict, dtmax_dict, cc_plot, dtmax_plot
