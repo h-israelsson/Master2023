@@ -213,7 +213,7 @@ def get_centers_of_mass(masks, cell_labels=None):
     labels: 1D or 2D list
         the labels of all the cells, in the same order as the centers of mass
     """
-    if cell_labels==None:
+    if cell_labels is None:
         cell_labels = get_cell_labels(masks)
     if len(masks.shape) == 3:
         COMs = []
@@ -613,7 +613,7 @@ def get_common_cells(tracked_masks, occurrence=100):
 
 def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
                            normalize=False, hpf=0.0005, lpf=0.017, plot=True,
-                           maxdt=200, T=10, n=None, cutoff_peakheight=None):
+                           maxdt=200, T=10, n=None, cutoff_peakheight=None, mode="max", speed=20):
     """ plot cross correlation as a function of distance from a reference cell
 
     The reference cell has to appear in the first image.
@@ -637,6 +637,11 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
         whether to do low-pass filtering or not
     plot: bool (optional)
         whether to plot the results or not
+    mode:
+        'max': take the maximal normalized cross-correlation for each time point
+        'lin': linear increase of time difference for cross correlation.
+    speed:
+        pixels/s
     Returns
     ---------------
     dist_sort: list
@@ -653,27 +658,36 @@ def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
     dists = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
 
     dists_sort, cell_lbls_sort = (list(t) for t in 
-                                  zip(*sorted(zip(dists, comparison_cells))))
+                                  zip(*sorted(zip(dists, cell_lbls))))
     xcorr_list = []
     dtmax_list = []
-    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images,
-                                              normalize, hpf, lpf)
+    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images, T=T,
+                                              normalize=normalize, hpf=hpf, lpf=lpf, n=n, cutoff_peakheight=cutoff_peakheight)
 
-    for cell in cell_lbls_sort:
+    for i, cell in enumerate(cell_lbls_sort):
         intensity = get_cell_intensities(cell, tracked_masks, images, T, normalize, hpf, lpf, n, cutoff_peakheight)
         xcorr = get_cc(ref_cell_intensity, intensity, maxdt)
-        xcorr_list.append(np.max(xcorr))
-        dtmax_list.append((np.argmax(xcorr)-maxdt)*T)
+        if mode=='max':
+            xcorr_list.append(np.max(xcorr))
+            dtmax_list.append((np.argmax(xcorr)-maxdt)*T)
+        if mode=='lin':
+            dt = round(dists_sort[i]/speed)
+            dtmax_list.append(dt)
+            xcorr_list.append(xcorr[round(dt/T+maxdt)])
 
-    if plot:
+
+    def plot_data(data_list, ylabel, title):
         plt.figure()
-        plt.scatter(dists_sort, xcorr_list, marker='.',color="red", label="Maximal cross-correlation")
-        plt.scatter(dists_sort, dtmax_list, marker='.',color="blue", label="dt at maximum cross-correlation")
-        plt.xlabel("Distance from reference cell (pixels)")
-        plt.ylabel("Cross correlation")
-        plt.title("Cross correlation as a function of distance from cell " + str(ref_cell))
+        plt.scatter(dists_sort, data_list, marker='.',color="blue")
+        plt.xlabel("Distance from reference cell [pixels]")
+        plt.ylabel(ylabel)
+        plt.title(title)
         plt.legend()
         plt.show()
+
+    if plot:
+        plot_data(xcorr_list,"Maximal cross-correlation", "Cross-correlation as a function of distance from cell " + str(ref_cell))
+        plot_data(dtmax_list,"dt at maximal cross-correlation", "dt at maximal cross-correlation as a function of distance from cell " + str(ref_cell))
 
     return dists_sort, xcorr_list
 
@@ -893,8 +907,8 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
                 cc_plot[ref_image==lbl] = cc_dict[lbl]
                 dtmax_plot[ref_image==lbl] = dtmax_dict[lbl]
 
-            plot_data(cc_plot,True,"Maximal cross-correlation",ref_image,cell_labels)
-            plot_data(dtmax_plot,True,"dt at maximal cross-correlation",ref_image,cell_labels)
+            plot_data(cc_plot,show_labels,"Maximal cross-correlation",ref_image,cell_labels)
+            plot_data(dtmax_plot,show_labels,"dt at maximal cross-correlation",ref_image,cell_labels)
 
         return cc_dict, dtmax_dict, cc_plot, dtmax_plot
         
