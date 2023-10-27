@@ -423,7 +423,26 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
         else:
             intensities[i] = np.NaN
 
-    intensities = pd.Series(intensities).interpolate().tolist()    
+    lost_intsies_idx = np.where(np.isnan(intsies))
+    lost_intsies_idx = np.split(lost_intsies_idx,
+                                np.where(np.diff(lost_intsies_idx) != 1)[0]+1)
+    
+    # Use segmented area to get mean intensity
+    for idxs in range(len(lost_intsies_idx)):
+        start_idx = idxs[0]-1
+        end_idx = idxs[-1]+1
+        if start_idx<0:
+            area = tracked_cells[end_idx]==cell_label
+        elif end_idx>len(images):
+            area = tracked_cells[start_idx]==cell_label
+        else:
+            area = np.multiply[tracked_cells[start_idx]==cell_label,
+                            tracked_cells[end_idx]==cell_label]
+        for i in idxs:
+            intensities[i] = np.mean(images[i][area])
+
+    # Extrapolate data
+    # intensities = pd.Series(intensities).interpolate().tolist()
 
     if n:
         for i in range(n):
@@ -912,8 +931,9 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
 
         return cc_dict, dtmax_dict, cc_plot, dtmax_plot
         
-
-
+def save_intensity_data():
+    
+    return
 
 
 
