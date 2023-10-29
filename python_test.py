@@ -428,7 +428,7 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
                                 np.where(np.diff(lost_intsies_idx) != 1)[0]+1)
     
     # Use segmented area to get mean intensity
-    for idxs in range(len(lost_intsies_idx)):
+    for idxs in lost_intsies_idx:
         start_idx = idxs[0]-1
         end_idx = idxs[-1]+1
         if start_idx<0:
@@ -436,8 +436,8 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
         elif end_idx>len(images):
             area = tracked_cells[start_idx]==cell_label
         else:
-            area = np.multiply[tracked_cells[start_idx]==cell_label,
-                            tracked_cells[end_idx]==cell_label]
+            area = np.multiply(tracked_cells[start_idx]==cell_label,
+                            tracked_cells[end_idx]==cell_label)
         for i in idxs:
             intensities[i] = np.mean(images[i][area])
 
