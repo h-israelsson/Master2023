@@ -423,23 +423,26 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
         else:
             intensities[i] = np.NaN
 
-    lost_intsies_idx = np.where(np.isnan(intsies))
-    lost_intsies_idx = np.split(lost_intsies_idx,
+    lost_intsies_idx = np.where(np.isnan(intensities))[0]
+    lost_intsies_idx = np.array_split(lost_intsies_idx,
                                 np.where(np.diff(lost_intsies_idx) != 1)[0]+1)
     
     # Use segmented area to get mean intensity
-    for idxs in lost_intsies_idx:
-        start_idx = idxs[0]-1
-        end_idx = idxs[-1]+1
-        if start_idx<0:
-            area = tracked_cells[end_idx]==cell_label
-        elif end_idx>len(images):
-            area = tracked_cells[start_idx]==cell_label
-        else:
-            area = np.multiply(tracked_cells[start_idx]==cell_label,
-                            tracked_cells[end_idx]==cell_label)
-        for i in idxs:
-            intensities[i] = np.mean(images[i][area])
+    if len(lost_intsies_idx[0])>0:
+        for idxs in lost_intsies_idx:
+            start_idx = idxs[0]-1
+            end_idx = idxs[-1]+1
+            if start_idx<0:
+                area = tracked_cells[end_idx]==cell_label
+            elif end_idx>=len(images):
+                area = tracked_cells[start_idx]==cell_label
+            else:
+                area = np.multiply(tracked_cells[start_idx]==cell_label,
+                                tracked_cells[end_idx]==cell_label)
+            for i in idxs:
+                intensities[i] = np.mean(images[i][area])
+            
+
 
     # Extrapolate data
     # intensities = pd.Series(intensities).interpolate().tolist()
@@ -931,9 +934,28 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
 
         return cc_dict, dtmax_dict, cc_plot, dtmax_plot
         
-def save_intensity_data():
-    
-    return
+
+# def main():
+#     path0815 = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/2023-08-15/"
+#     name_ctl = "ctl-ftrc2-dl12-btl15-diam325"
+#     images_path_ctl0815 = path0815 + "15_08_ctl.tif"
+#     masks_path_ctl0815 = path0815 + name_ctl + "_masks.tif"
+#     images_ctl0815 = open_image_stack(images_path_ctl0815)
+#     masks_ctl0815 = open_masks(masks_path_ctl0815)
+#     common_cellsctl0815, counts = get_common_cells(masks_ctl0815, occurrence=50)
+#     save_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Master2023/Recordings/Intensity-data/ctl"
+
+#     ctl0815_dict = {}
+#     for c in common_cellsctl0815:
+#         y = get_cell_intensities(c, masks_ctl0815, images_ctl0815, normalize=False, hpf=None, lpf=None)
+#         # Find the first image the cell appears in
+#         im_id = np.where(masks_ctl0815)[0][0]
+#         c_o_m = get_centers_of_mass(masks_ctl0815[im_id], c)
+#         ctl0815_dict[str(c_o_m)] = y
+#     df = pd.DataFrame(data=ctl0815_dict)
+#     df.to_csv(save_path+"/ctl0815.csv")
 
 
 
+# if __name__ == "__main__":
+#     main()
