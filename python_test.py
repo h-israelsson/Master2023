@@ -8,7 +8,7 @@ from tifffile import imwrite
 from os.path import basename, splitext, exists
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from scipy.signal import butter, filtfilt, convolve2d
+from scipy.signal import convolve2d
 import pandas as pd
 
 def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
@@ -26,8 +26,8 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     model_path: str
         the path to the model to use for segmenting
     diam: float (optional)
-        approximate diameter of the cells in pixels. View the image in
-        Cellpose API to get an idea of this value.
+        approximate diameter of the cells in pixels. Recommended to use the
+        automatic estimation in the cellpose API.
     save: bool (optional)
         if True, the masks will be saved as a single .tif file
     savedir: str (optional)
@@ -49,7 +49,7 @@ def get_segmentation(image_path, model_path, diam=40, save=False, savedir=None,
     """
 
     model = models.CellposeModel(gpu = True, pretrained_model=model_path)
-    if type(image_path) == str:
+    if type(image_path)==str:
         imgs = open_image_stack(image_path)
     else:
         imgs = image_path
@@ -109,7 +109,7 @@ def _save_masks(masks, name=None, savedir=None):
     else:
         if exists(savedir) == False:
             makedirs(savedir)
-        imwrite(savedir+"\\"+name+"_masks.tif", masks)
+        imwrite(savedir+"/"+name+"_masks.tif", masks)
     return None
 
 
@@ -306,7 +306,7 @@ def get_tracked_masks(masks, dist_limit=20, backtrack_limit=15, random_labels=Fa
     return tracked_masks
 
 
-def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
+def get_tracked_masks_area_overlap(masks, overlap_limit=0.5, backtrack_limit=15,
                        random_labels=False, save=False, name=None,
                        savedir=None):
     """ track the cells
@@ -358,13 +358,8 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
             for k in range(1, backtrack_limit+1):
                 overlap_values = tracked_masks[imnr-k][masks[imnr]==lbl]
                 counts = np.bincount(overlap_values)
-                # print(overlap_values)
-                # print(counts)
-                # input("Some first input")
                 if max(counts)>=min_overlap and np.argmax(counts)!=0:
                     new_cell_value = np.argmax(counts)
-                    # print(new_cell_value)
-                    # print(lbl)
                     break
                 if k==backtrack_limit or imnr-k==0:    # No matching cell found
                     new_cells += 1
@@ -372,8 +367,6 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
                     break
             coords = np.argwhere(masks[imnr].flatten()==lbl)
             np.put(tracked_masks[imnr], coords, new_cell_value)
-        # print(len((tracked_masks[imnr]-masks[imnr])[(tracked_masks[imnr]-masks[imnr])!=0]))
-        # input("Some input")
 
     if save:
         _save_masks(tracked_masks, name=name, savedir=savedir)
@@ -381,8 +374,99 @@ def get_tracked_masks2(masks, overlap_limit=0.5, backtrack_limit=15,
     return tracked_masks
 
 
-def get_cell_intensities(cell_label, tracked_cells, images, T=10,
-                         normalize=None, hpf=0.0005, lpf=0.017, n=None, cutoff_peakheight=None):
+# def get_cell_intensities(cell_label, tracked_cells, images, T=10,
+    #                      normalize=None, hpf=0.0005, lpf=0.017, n=None, cutoff_peakheight=None):
+    # """ get the intensities of a specified cell in all images
+    
+    # Calculates the intensity of a specified cell in each image.
+    # If the cell does not appear in one of the images, the intensity
+    # will be given by linear interpolation of existing values.
+    # Parameters
+    # ---------------
+    # cell_label: int
+    #     the label of the cell for which the intensities should be calculated
+    # tracked_cells: 3D array
+    #     previously tracked masks from which to get the cell locations
+    # images: 3D array
+    #     The images from which the tracked cells mask was generated and the
+    #     intensity should be retrieved from
+    # T : int or float
+    #     period of imaging (time between images) in seconds
+    # normalize: bool (optional)
+    #     'minmax'
+    #     if True, the intensities are min-max normalized to a range of 0 to 1
+    # hpf: bool (optional)
+    #     whether to do high-pass filtering or not
+    # lpf: bool (optional)
+    #     whether to do low-pass filtering or not
+    # Returns
+    # ---------------
+    # mean_intensities: 1D array
+    #     mean (normalized) intensity of the cell for each image
+    # """
+    # images_count = len(images)
+    # intensities = np.zeros(images_count)
+
+    # for i in range(images_count):
+    #     intsies = images[i][tracked_cells[i]==cell_label]
+    #     if np.any(intsies):
+    #         intensities[i] = np.mean(intsies)
+    #     else:
+    #         intensities[i] = np.NaN
+
+    # lost_intsies_idx = np.where(np.isnan(intensities))[0]
+    # lost_intsies_idx = np.array_split(lost_intsies_idx,
+    #                             np.where(np.diff(lost_intsies_idx) != 1)[0]+1)
+    
+    # # Use segmented area to get mean intensity
+    # if len(lost_intsies_idx[0])>0:
+    #     for idxs in lost_intsies_idx:
+    #         start_idx = idxs[0]-1
+    #         end_idx = idxs[-1]+1
+    #         if start_idx<0:
+    #             area = tracked_cells[end_idx]==cell_label
+    #         elif end_idx>=len(images):
+    #             area = tracked_cells[start_idx]==cell_label
+    #         else:
+    #             area = np.multiply(tracked_cells[start_idx]==cell_label,
+    #                             tracked_cells[end_idx]==cell_label)
+    #         for i in idxs:
+    #             intensities[i] = np.mean(images[i][area])
+            
+
+
+    # # Extrapolate data
+    # # intensities = pd.Series(intensities).interpolate().tolist()
+
+    # if n:
+    #     for i in range(n):
+    #         intensities[i] = np.mean(intensities[0:i+n])
+    #     for i in range(4,len(intensities)):
+    #         intensities[i] = np.mean(intensities[i-n:i+n])
+    # if hpf:
+    #     hpf_cutoff_freq = hpf
+    #     freqs = np.fft.fftfreq(len(intensities), T)
+    #     filter_mask = np.abs(freqs) > hpf_cutoff_freq
+    #     intensities_fft = np.fft.fft(intensities)
+    #     filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+    #     intensities = filtered_signal
+    # if lpf:
+    #     lpf_cutoff_freq = lpf
+    #     freqs = np.fft.fftfreq(len(intensities), T)
+    #     filter_mask = np.abs(freqs) < lpf_cutoff_freq
+    #     intensities_fft = np.fft.fft(intensities)
+    #     filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
+    #     intensities = filtered_signal
+    # if normalize=='minmax':
+    #     intensities = (intensities - np.min(intensities))/\
+    #         (np.max(intensities)-np.min(intensities))
+    # if cutoff_peakheight!=None:
+    #     for i in range(len(intensities)):
+    #         if intensities[i]<cutoff_peakheight:
+    #             intensities[i] = 0
+    # return np.array(intensities)
+
+def get_cell_intensities(cell_label, tracked_cells, images, T=10):
     """ get the intensities of a specified cell in all images
     
     Calculates the intensity of a specified cell in each image.
@@ -399,13 +483,6 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
         intensity should be retrieved from
     T : int or float
         period of imaging (time between images) in seconds
-    normalize: bool (optional)
-        'minmax'
-        if True, the intensities are min-max normalized to a range of 0 to 1
-    hpf: bool (optional)
-        whether to do high-pass filtering or not
-    lpf: bool (optional)
-        whether to do low-pass filtering or not
     Returns
     ---------------
     mean_intensities: 1D array
@@ -413,8 +490,6 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
     """
     images_count = len(images)
     intensities = np.zeros(images_count)
-    hpf_cutoff_freq = 0.0025
-    lpf_cutoff_freq = 0.005
 
     for i in range(images_count):
         intsies = images[i][tracked_cells[i]==cell_label]
@@ -425,7 +500,7 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
 
     lost_intsies_idx = np.where(np.isnan(intensities))[0]
     lost_intsies_idx = np.array_split(lost_intsies_idx,
-                                np.where(np.diff(lost_intsies_idx) != 1)[0]+1)
+                                np.where(np.diff(lost_intsies_idx)!=1)[0]+1)
     
     # Use segmented area to get mean intensity
     if len(lost_intsies_idx[0])>0:
@@ -433,46 +508,14 @@ def get_cell_intensities(cell_label, tracked_cells, images, T=10,
             start_idx = idxs[0]-1
             end_idx = idxs[-1]+1
             if start_idx<0:
-                area = tracked_cells[end_idx]==cell_label
+                area = (tracked_cells[end_idx]==cell_label)
             elif end_idx>=len(images):
-                area = tracked_cells[start_idx]==cell_label
+                area = (tracked_cells[start_idx]==cell_label)
             else:
                 area = np.multiply(tracked_cells[start_idx]==cell_label,
                                 tracked_cells[end_idx]==cell_label)
             for i in idxs:
                 intensities[i] = np.mean(images[i][area])
-            
-
-
-    # Extrapolate data
-    # intensities = pd.Series(intensities).interpolate().tolist()
-
-    if n:
-        for i in range(n):
-            intensities[i] = np.mean(intensities[0:i+n])
-        for i in range(4,len(intensities)):
-            intensities[i] = np.mean(intensities[i-n:i+n])
-    if hpf:
-        hpf_cutoff_freq = hpf
-        freqs = np.fft.fftfreq(len(intensities), T)
-        filter_mask = np.abs(freqs) > hpf_cutoff_freq
-        intensities_fft = np.fft.fft(intensities)
-        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        intensities = filtered_signal
-    if lpf:
-        lpf_cutoff_freq = lpf
-        freqs = np.fft.fftfreq(len(intensities), T)
-        filter_mask = np.abs(freqs) < lpf_cutoff_freq
-        intensities_fft = np.fft.fft(intensities)
-        filtered_signal = np.real(np.fft.ifft(intensities_fft*filter_mask))
-        intensities = filtered_signal
-    if normalize=='minmax':
-        intensities = (intensities - np.min(intensities))/\
-            (np.max(intensities)-np.min(intensities))
-    if cutoff_peakheight!=None:
-        for i in range(len(intensities)):
-            if intensities[i]<cutoff_peakheight:
-                intensities[i] = 0
     return np.array(intensities)
 
 
@@ -596,7 +639,6 @@ def get_correlation_matrix(tracked_cells, images, cell_labels=None,
     return corrcoefs
 
 
-
 def get_common_cells(tracked_masks, occurrence=100):
     """ get the cells that appear in at least [occurrence] percent of images
     
@@ -620,22 +662,99 @@ def get_common_cells(tracked_masks, occurrence=100):
     cell_labels = get_cell_labels(tracked_masks)
     commons = []
     counts = []
-    limit = (occurrence/100)*len(tracked_masks)
+    limit = (occurrence/100.)*len(tracked_masks)
     cell_labels_flat = np.array([i for image in cell_labels for i in image])
 
     for i in np.unique(cell_labels_flat):
-        count = np.count_nonzero(cell_labels_flat == i)
-        if count >= limit:
+        count = np.count_nonzero(cell_labels_flat==i)
+        if count>=limit:
             commons.append(i)
             counts.append(count)
-    commons = np.array(commons)
-    counts = np.array(counts)
-    return commons, counts
+    return np.array(commons), np.array(counts)
 
 
 def plot_xcorr_vs_distance(ref_cell, tracked_masks, images, perc_req = 100,
                            normalize=False, hpf=0.0005, lpf=0.017, plot=True,
                            maxdt=200, T=10, n=None, cutoff_peakheight=None, mode="max", speed=20):
+    """ plot cross correlation as a function of distance from a reference cell
+
+    The reference cell has to appear in the first image.
+    Parameters
+    ---------------
+    ref_cell: int
+        the label of the cell that the distances should be compared with
+    tracked_masks: 3D array
+        previously tracked segmentation masks
+    images: 3D array
+        images from which the tracked_cells segmentation mask was generated
+    perc_req: int
+        requirement on how many percent of the images the cells have to be in
+        in order to be included in the calculations of cross correlation
+    normalize: bool (optional)
+        if True, the intensities are normalized so that the intensities of
+        different cells match better
+    hpf: bool (optional)
+        whether to do high-pass filtering or not
+    lpf: bool (optional)
+        whether to do low-pass filtering or not
+    plot: bool (optional)
+        whether to plot the results or not
+    mode:
+        'max': take the maximal normalized cross-correlation for each time point
+        'lin': linear increase of time difference for cross correlation.
+    speed:
+        pixels/s
+    Returns
+    ---------------
+    dist_sort: list
+        a list of all the distances between the reference cell and the other
+        cells, sorted by distance
+    xcorr_list:list
+        normalized cross correlation between reference cell and the other
+        cells, sorted by distance from reference cell.
+    """
+    cell_lbls, count = get_common_cells(tracked_masks, perc_req)
+    coms, cell_lbls = get_centers_of_mass(tracked_masks[0], cell_lbls)
+    com_ref = coms[cell_lbls==ref_cell]
+
+    dists = np.linalg.norm(np.array(coms)-np.array(com_ref), axis=1)
+
+    dists_sort, cell_lbls_sort = (list(t) for t in 
+                                  zip(*sorted(zip(dists, cell_lbls))))
+    xcorr_list = []
+    dtmax_list = []
+    ref_cell_intensity = get_cell_intensities(ref_cell, tracked_masks, images, T=T,
+                                              normalize=normalize, hpf=hpf, lpf=lpf, n=n, cutoff_peakheight=cutoff_peakheight)
+
+    for i, cell in enumerate(cell_lbls_sort):
+        intensity = get_cell_intensities(cell, tracked_masks, images, T, normalize, hpf, lpf, n, cutoff_peakheight)
+        xcorr = get_cc(ref_cell_intensity, intensity, maxdt)
+        if mode=='max':
+            xcorr_list.append(np.max(xcorr))
+            dtmax_list.append((np.argmax(xcorr)-maxdt)*T)
+        if mode=='lin':
+            dt = round(dists_sort[i]/speed)
+            dtmax_list.append(dt)
+            xcorr_list.append(xcorr[round(dt/T+maxdt)])
+
+
+    def plot_data(data_list, ylabel, title):
+        plt.figure()
+        plt.scatter(dists_sort, data_list, marker='.',color="blue")
+        plt.xlabel("Distance from reference cell [pixels]")
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.legend()
+        plt.show()
+
+    if plot:
+        plot_data(xcorr_list,"Maximal cross-correlation", "Cross-correlation as a function of distance from cell " + str(ref_cell))
+        plot_data(dtmax_list,"dt at maximal cross-correlation", "dt at maximal cross-correlation as a function of distance from cell " + str(ref_cell))
+
+    return dists_sort, xcorr_list
+
+
+def plot_xcorr_vs_distance_new(ref_cell, intensities, reference_mask):
     """ plot cross correlation as a function of distance from a reference cell
 
     The reference cell has to appear in the first image.
@@ -867,20 +986,26 @@ def plot_xcorr_map(tracked_masks, images, mode='single', ref_cell=1, occurrence=
 
 
 def get_cc(intensities1, intensities2, max_dt):
-    def cc(f1, f2):
-        return np.sum(f1*f2)
+    """Returns the list of correlations and corresponding time shift.
+    The time shift is in respect to intensities1."""
+    def cc(f1,f2):
+        return np.sum((f1-np.mean(f1))*(f2-np.mean(f2)))
     
-    def ccn(f1, f2):
+    def ncc(f1, f2):
         return cc(f1,f2)/np.sqrt(cc(f1,f1)*cc(f2,f2))
 
     correlation_list = []
+    dt_list = []
     for dt in range(max_dt,0,-1):
-        correlation_list.append(ccn(intensities1[:-dt],intensities2[dt:]))
-    correlation_list.append(ccn(intensities1,intensities2))
+        dt_list.append(-dt)
+        correlation_list.append(ncc(intensities1[:-dt],intensities2[dt:]))
+    correlation_list.append(ncc(intensities1,intensities2))
+    dt_list.append(0)
     for dt in range(1, max_dt+1):
-        correlation_list.append(ccn(intensities1[dt:],intensities2[:-dt]))
+        dt_list.append(dt)
+        correlation_list.append(ncc(intensities1[dt:],intensities2[:-dt]))
 
-    return correlation_list
+    return correlation_list, dt_list
 
 
 def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
@@ -916,9 +1041,9 @@ def plot_xcorr_map_new(tracked_masks, images, mode="single", ref_cell_lbl=1,
         dtmax_dict = {}
 
         for lbl in cell_labels:
-            cc = get_cc(intsies_lbl_dict[lbl], intsies_lbl_dict[ref_cell_lbl], max_dt)
+            cc, dt = get_cc(intsies_lbl_dict[lbl], intsies_lbl_dict[ref_cell_lbl], max_dt)
             cc_dict[lbl] = np.max(cc)
-            dtmax_dict[lbl] = (np.argmax(cc)-max_dt)*T
+            dtmax_dict[lbl] = dt[np.argmax(cc)]
 
         if plot:
             ref_image = tracked_masks[ref_image_idx]
