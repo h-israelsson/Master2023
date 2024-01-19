@@ -2,7 +2,7 @@ import tifffile
 import python_test
 import pandas as pd
 import numpy as np
-import skimage
+# import skimage
 from scipy import ndimage
 from cellpose import models
 import matplotlib.pyplot as plt
@@ -20,14 +20,12 @@ def do_it(X, masks, occurrence_limit=50, T=10, max_dt = 30):
     # load masks
     print('Get intensities')
     common_cells, counts = python_test.get_common_cells(masks, occurrence=occurrence_limit) # Get the cells to include in the intensity measurements
-    df = pd.DataFrame(columns=common_cells)     # Generate DataFrame for storing the information
 
     intensities = {}
     for c in common_cells:
-        intensities[c] = python_test.get_cell_intensities(c, masks, X, T=T)
+        intensities[c] = python_test.get_cell_intensities(c, masks, X, T=T)#.astype('int16')
 
-    row = pd.Series(intensities,name="Intensities")
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    intensities = pd.DataFrame(intensities)
     print('Get COM')
     COMs = {}
     for c in common_cells:
@@ -36,8 +34,7 @@ def do_it(X, masks, occurrence_limit=50, T=10, max_dt = 30):
                 COMs[c] = list(python_test.get_centers_of_mass(masks[im], c)[0])
                 break
 
-    row = pd.Series(COMs,name="Center of mass")
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    COMs = pd.DataFrame([COMs],["Center of mass"])
 
     def filtered_masks(masks, common_cells):
         """Set all labels in masks not in common_cells to 0."""
@@ -75,21 +72,18 @@ def do_it(X, masks, occurrence_limit=50, T=10, max_dt = 30):
     for c in common_cells:
         border_values[c] = list(extract_border_values(fltr_masks, c))
 
-    row = pd.Series(border_values,name="Border values")
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-
-    df.index = ['Intensities', 'Center of mass', 'Border values']
-
+    border_values = pd.DataFrame([border_values],["Border values"])
+    
     # get cross correlation
-    def get_ncc_for_bv(df, cell_lbl, max_dt):
-        bvs = np.array(df.loc["Border values", cell_lbl])
+    def get_ncc_for_bv(border_values,intensities, cell_lbl, max_dt):
+        bvs = np.array(border_values.loc["Border values", cell_lbl])
         bvs = bvs[bvs!=0]
         bvs_uniq = np.unique(bvs)
         ncc = 0
         dts = 0
         for bv in bvs_uniq:
-            xcorr, dt = python_test.get_cc(np.array(df.loc["Intensities", cell_lbl]),
-                            np.array(df.loc["Intensities", bv]), max_dt)
+            xcorr, dt = python_test.get_cc(np.array(intensities.loc[:, cell_lbl]),
+                            np.array(intensities.loc[:, bv]), max_dt)
             w = len(bvs[bvs==bv])/len(bvs[bvs!=0])
             ncc += np.max(xcorr)*w
             dts += dt[np.argmax(xcorr)]*w
@@ -98,28 +92,24 @@ def do_it(X, masks, occurrence_limit=50, T=10, max_dt = 30):
     cross_correlations = {}
     time_diffs = {}
     for c in common_cells:
-        cross_correlations[c], time_diffs[c] = get_ncc_for_bv(df, c, max_dt)
+        cross_correlations[c], time_diffs[c] = get_ncc_for_bv(border_values, intensities, c, max_dt)
 
-    row = pd.Series(cross_correlations,name="Weighted max NCC for border values")
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    row = pd.Series(time_diffs,name="Weighted time difference at max NCC for border values")
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    df.index = ['Intensities', 'Center of mass', 'Border values', 'Weighted max NCC for border values', 'Weighted time difference at max NCC for border values']
-
-    def get_max_freq(df, T):
+    cross_correlations = pd.DataFrame([cross_correlations], ["Weighted max NCC for border values"])
+    time_diffs = pd.DataFrame([time_diffs], ["Weighted time difference at max NCC for border values"])
+    
+    def get_max_freq(intensities, T):
         fouriermax = {}
-        for c in df.columns:
-            fft = np.fft.fft(df.loc["Intensities", c])
-            freqs = np.fft.fftfreq(len(df.loc["Intensities", c]), T)
+        for c in intensities.columns:
+            fft = np.fft.fft(intensities.loc[:, c])
+            freqs = np.fft.fftfreq(len(intensities.loc[:, c]), T)
             fft_filtered = fft*(freqs>(3/(3600))) #Remove all periods longer than 20 min  
             fouriermax[c] = np.abs(freqs[np.argmax(fft_filtered)])
         return fouriermax
 
-    fouriermax = get_max_freq(df, T)
+    fouriermax = get_max_freq(intensities, T)
 
-    row = pd.Series(fouriermax,name="Most prominent frequency")
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    df.index = ['Intensities', 'Center of mass', 'Border values', 'Weighted max NCC for border values', 'Weighted time difference at max NCC for border values', 'Most prominent frequency']
+    fouriermax = pd.DataFrame([fouriermax], ["Most prominent frequency"])
+    df = pd.concat([pd.concat([COMs, border_values, cross_correlations, time_diffs, fouriermax]), intensities], keys=["Analysis results", "Intensities"])
     print('Save file')
     return df
 
@@ -127,9 +117,9 @@ def do_it(X, masks, occurrence_limit=50, T=10, max_dt = 30):
 
 
 force_redo = False
-masks_path = '/home/sim/OneDrive/Data/by_projects/gcamp/masks_new_trained_scratch/'
-tif_path = '/home/sim/OneDrive/Data/by_projects/gcamp/tif/'
-save_path = '/home/sim/OneDrive/Data/by_projects/gcamp/csvs_new_trained_from_scratch/'
+masks_path = '//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/240115_correlation_data/masks_new_trained_scratch/'
+tif_path = "//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/Alejandro's recordings - tif/"
+save_path = '//storage3.ad.scilifelab.se/alm/BrismarGroup/Hanna/240115_correlation_data/csvs_new2_trained_from_scratch/'
 
 all_masks = os.listdir(masks_path)
 create_folder(save_path)
