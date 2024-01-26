@@ -24,7 +24,11 @@ def do_it(X, masks, occurrence_limit=50, T=10, max_dt = 30):
 
     intensities = {}
     for c in common_cells:
-        intensities[c] = python_test.get_cell_intensities(c, masks, X, T=T)
+        i = python_test.get_cell_intensities(c, masks, X, T=T)#.astype('int16')
+        if any(np.isnan(i)):
+            continue
+        else:
+            intensities[c] = i
 
     row = pd.Series(intensities,name="Intensities")
     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
